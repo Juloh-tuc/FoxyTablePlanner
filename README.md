@@ -1,69 +1,50 @@
-# React + TypeScript + Vite
+📅 Planner App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Un petit planner fait en React (TypeScript/JSX + CSS) permettant de gérer ses tâches avec statut, priorité et suivi du progrès.
 
-Currently, two official plugins are available:
+✨ Fonctionnalités
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+➕ Ajouter des tâches
 
-## Expanding the ESLint configuration
+📝 Modifier et mettre à jour les statuts (Fait, En cours, Bloqué, Pas commencé)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+⭐ Définir la priorité (Faible, Moyen, Élevé)
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+👩‍💻 Attribution à un utilisateur
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+💾 Sauvegarde locale avec localStorage
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+🎨 Interface responsive et simple à utiliser
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+🛠️ Technologies utilisées
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+⚛️ React
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+🎨 CSS (mobile-first)
+
+💾 LocalStorage pour la persistance
+
+🚀 Installation
+
+Clone le projet et installe les dépendances :
+
+git clone https://github.com/Juloh-tuc/FoxyTablePlanner.git
+cd planner-app
+npm install
+npm run dev
+
+📸 Aperçu
+
+
+
+📌 Améliorations futures
+
+ Connexion utilisateur
+
+ Persistance avec une base de données (ex: MySQL, MongoDB)
+
+ Déploiement en ligne (Netlify / Vercel)
+
+👩 Auteur
+
+Projet développé par Julie Lohier ✨
