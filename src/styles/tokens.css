@@ -1,0 +1,47 @@
+:root {
+  /* Fond / texte / UI */
+  --bg:#FAFAFA;
+  --text: #1F2328;
+  --border: #CFCFCF;
+  --card: #ffffff;
+  --shadow: 0 2px 8px rgba(0,0,0,.06);
+  --radius: 16px;
+
+  /* Palette statuts */
+  --st-priority: #A64AC9;   /* Prioritaire (badge) */
+  --st-progress: #FCCD04;   /* En cours */
+  --st-wait: #FFB48F;       /* En attente */
+  --st-blocked: #E24D4D;    /* Bloqué */
+  --st-done: #17E9E0;       /* Terminé */
+  --st-info: #4D7CFE;       /* Info */
+
+  /* UI accent (boutons) */
+  --accent: #8b5cf6;
+}
+:root[data-theme="dark"]{
+  /* Neutres */
+  --bg:#0f1115;
+  --text:#e5e7eb;
+  --card:#171a21;
+  --border:#2a2f3a;
+
+  /* Surfaces utiles (zébrage/thead) */
+  --surface-subtle:#141820;
+  --surface-muted:#1a1f29;
+
+  /* Table (zebra + header) */
+  --table-row-1:#161a23;
+  --table-row-2:#141820;
+  --table-header:#1d2430;
+
+  /* Ombres un peu plus denses en dark */
+  --shadow:0 8px 20px rgba(0,0,0,.45);
+  --shadow-sm:0 4px 12px rgba(0,0,0,.35);
+}
+:root{
+  --surface-subtle:#F9FAFB;
+  --surface-muted:#FAFAFB;
+  --table-row-1:#FFFFFF;
+  --table-row-2:#F9FAFB;
+  --table-header:#F3F4F6;
+}

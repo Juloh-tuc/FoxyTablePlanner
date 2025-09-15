@@ -1,0 +1,197 @@
+/* =========================================================
+   Planner Table — large + no vertical grid + zebra rows
+   Remplacez ENTIEREMENT src/styles/planner-table.css
+   ========================================================= */
+
+/* ----------- Wrapper ----------- */
+.table-wrap{ overflow:auto; }
+
+/* ----------- Table ----------- */
+.table{
+  width:100%;
+  min-width:1800px;             /* >>> plus large */
+  table-layout: fixed;
+  border-collapse:separate;      /* nécessaire pour le radius */
+  border-spacing:0;
+  background:#fff;
+  border-radius:12px;
+  overflow:hidden;
+
+  /* variables locales (pour ne PAS dépendre d’un --border sombre) */
+  --tbl-outline: rgba(0,0,0,.06);
+  --tbl-row-sep: rgba(0,0,0,.06);
+  --tbl-header-bg:#fafafa;
+  --tbl-shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --tbl-shadow:    0 10px 24px rgba(0,0,0,.12);
+
+  box-shadow: var(--tbl-shadow-sm);
+}
+
+/* Head */
+.table thead th{
+  position: sticky; top: 0; z-index: 1;
+  background: var(--tbl-header-bg);
+  font-weight: 800;
+  padding: 12px 14px;
+  height: 56px;
+  /* seule séparation visible du header */
+  box-shadow: inset 0 -1px var(--tbl-row-sep);
+}
+
+/* Cells */
+.table th, .table td{
+  padding:12px 14px;
+  height:56px;
+  white-space:nowrap;
+  vertical-align: middle;
+  /* >>> AUCUNE grille verticale */
+  border: none;
+}
+
+/* Zebra rows + séparateur horizontal très léger */
+.table tbody tr:nth-child(odd)  td{ background:#ffffff; }
+.table tbody tr:nth-child(even) td{ background:#fbfbfd; }
+.table tbody tr td{ box-shadow: inset 0 -1px var(--tbl-row-sep); }
+.table tbody tr:last-child td{ box-shadow: none; }
+
+/* petit outline doux autour du bloc table  */
+.table::before{
+  content:""; position:absolute; inset:0; pointer-events:none; border-radius:12px;
+  box-shadow: inset 0 0 0 1px var(--tbl-outline);
+}
+
+/* nombre tabulaires pour la colonne Budget */
+.table .money{ font-variant-numeric: tabular-nums; }
+
+/* ----------- Largeurs par colonne ----------- */
+/* 1:Project 2:Start 3:Admin 4:Status 5:Priority 6:Labels 7:Budget 8:Progress 9:Due 10:Blocked 11:Remarks 12:Actions */
+.table th:nth-child(1),  .table td:nth-child(1)  { width:280px; }
+.table th:nth-child(2),  .table td:nth-child(2)  { width:160px; }
+.table th:nth-child(3),  .table td:nth-child(3)  { width:180px; }
+.table th:nth-child(4),  .table td:nth-child(4)  { width:170px; }
+.table th:nth-child(5),  .table td:nth-child(5)  { width:150px; }
+.table th:nth-child(6),  .table td:nth-child(6)  { width:340px; } /* Labels */
+.table th:nth-child(7),  .table td:nth-child(7)  { width:130px; }
+.table th:nth-child(8),  .table td:nth-child(8)  { width:260px; } /* Progress */
+.table th:nth-child(9),  .table td:nth-child(9)  { width:160px; }
+.table th:nth-child(10), .table td:nth-child(10) { width:190px; }
+.table th:nth-child(11), .table td:nth-child(11) { width:260px; }
+.table th:nth-child(12), .table td:nth-child(12) { width:120px; }
+
+/* ----------- Inputs / Selects ----------- */
+.cell-input{
+  width:100%; max-width:100%;
+  padding:8px 10px; border-radius:10px; background:#fff; font:inherit;
+  border:1px solid var(--tbl-outline);
+}
+.cell-input.right{ text-align:right; max-width:120px; }
+
+.cell-readonly{ display:none; color:#6b7280; }
+
+/* Statut (chip) */
+.select-chip{
+  width:100%; padding:8px 10px; border-radius:999px; font-weight:800;
+  background:#fff; border:1px solid var(--tbl-outline);
+}
+.select-chip.is-progress{ background:rgba(252,205,4,.18);  border-color:rgba(252,205,4,.35);  color:#6b4e00; }
+.select-chip.is-wait    { background:rgba(255,180,143,.18); border-color:rgba(255,180,143,.35); color:#7a3f2a; }
+.select-chip.is-blocked { background:rgba(226,77,77,.16);   border-color:rgba(226,77,77,.35);   color:#7a1c1c; }
+.select-chip.is-done    { background:rgba(23,233,224,.18);  border-color:rgba(23,233,224,.35);  color:#0b6b66; }
+.select-chip.is-info    { background:rgba(77,124,254,.16);  border-color:rgba(77,124,254,.35);  color:#1c3a96; }
+
+/* Priorité */
+.select-prio{
+  width:100%; padding:8px 10px; border-radius:999px; font-weight:800;
+  background:#fff; border:1px solid var(--tbl-outline);
+}
+
+/* ----------- Progress (alignement nickel) ----------- */
+.cell-progress{
+  display:flex; align-items:center; gap:10px; justify-content:flex-start;
+  min-height:32px;
+}
+.range{
+  width:200px; height:6px; margin:0;
+  appearance:none; background:#e5e7eb; border-radius:999px;
+}
+/* WebKit */
+.range::-webkit-slider-runnable-track{ height:6px; background:#e5e7eb; border-radius:999px; }
+.range::-webkit-slider-thumb{
+  appearance:none; width:16px; height:16px; margin-top:-5px;
+  border-radius:50%; background: var(--accent, #7C3AED); border:2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2); cursor:pointer;
+}
+/* Firefox */
+.range::-moz-range-track{ height:6px; background:#e5e7eb; border-radius:999px; }
+.range::-moz-range-thumb{
+  width:16px; height:16px; border:2px solid #fff; border-radius:50%;
+  background: var(--accent, #7C3AED); box-shadow: 0 1px 3px rgba(0,0,0,.2); cursor:pointer;
+}
+.percent{ font-weight:800; min-width:44px; text-align:left; }
+
+/* ----------- Labels / Tags ----------- */
+.cell-tags{ position:relative; min-width:320px; }
+.tags-cell{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-height:36px; }
+
+.chip-edit{
+  margin-left:4px; padding:6px 10px; border-radius:999px; cursor:pointer;
+  border:1px dashed var(--tbl-outline); background:#fff;
+  transition: box-shadow .12s ease, transform .12s ease;
+}
+.chip-edit:hover{ box-shadow: var(--tbl-shadow-sm); transform: translateY(-1px); }
+
+.tag-picker{
+  position:absolute; left:14px; top:100%; margin-top:6px;
+  background:#fff; border:1px solid var(--tbl-outline); border-radius:12px;
+  padding:10px; z-index:5; width:min(520px, 70vw); box-shadow: var(--tbl-shadow);
+}
+.tag-picker__head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.tag-picker__list{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+.tag-option{ display:flex; align-items:center; gap:8px; padding:6px; border:1px solid var(--tbl-outline); border-radius:10px; background:#fff; }
+.tag-option input{ transform: translateY(1px); }
+
+/* Tag styles */
+.tag{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 10px; border-radius:999px; font-size:.85rem; font-weight:700;
+  background:#EEF2FF; border:1px solid var(--tbl-outline); color:#1e293b;
+}
+/* Bleu — "Site Web" */
+.tag--web{ background:#e3edff; border-color:#c7d7ff; color:#1e3a8a; }
+/* Tons bruns (BO/FO) */
+.tag--front-bo{ background:#efe1d2; border-color:#e0c8ac; color:#563b1c; }
+.tag--back-fo{  background:#ede3cb; border-color:#e0d1a3; color:#4a3a1a; }
+.tag--front-fo{ background:#f1e7d4; border-color:#e5d5ae; color:#4b3820; }
+.tag--back-bo{  background:#e8dcc8; border-color:#d9c7a5; color:#4a3720; }
+/* Autres */
+.tag--api{    background:#e6f7ff; border-color:#ccefff; color:#0b4a6e; }
+.tag--design{ background:#ffe9f2; border-color:#ffd0e5; color:#7a1a46; }
+.tag--mobile{ background:#e9ffef; border-color:#c9f7d6; color:#14532d; }
+.tag--autre{  background:#f3f4f6; border-color:#e5e7eb; color:#374151; }
+
+/* ----------- Actions / Ajout ----------- */
+.actions{ display:flex; gap:8px; }
+.row-add{ text-align:center; background:#fafafa; }
+.row-add .btn{ margin:10px 0; }
+
+/* ----------- Buttons ----------- */
+.btn{
+  padding:8px 12px; border-radius:10px; background:#fff; cursor:pointer;
+  border:1px solid var(--tbl-outline);
+  transition: box-shadow .12s ease, transform .12s ease, background .12s ease;
+}
+.btn:hover{ box-shadow: var(--tbl-shadow-sm); transform: translateY(-1px); }
+.btn.primary{ background:#7C3AED; color:#fff; border-color:#7C3AED; }
+.btn.danger { background:#fee2e2; border-color:#fecaca; color:#7a1c1c; }
+.btn.small  { padding:6px 10px; }
+.btn:focus-visible{ outline:none; box-shadow: 0 0 0 3px rgba(124,58,237,.35); }
+
+/* ----------- Responsive tweaks ----------- */
+@media (max-width: 1024px){
+  .cell-tags{ min-width: 280px; }
+  .range{ width:180px; }
+}
+@media (max-width: 640px){
+  .tag-picker{ width: min(420px, 90vw); }
+  .tag-picker__list{ grid-template-columns: 1fr; }
+}

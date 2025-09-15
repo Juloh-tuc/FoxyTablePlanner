@@ -1,0 +1,104 @@
+/* ===== Agile (Kanban) — mobile-first, colonnes empilées ===== */
+
+/* largeur confortable, alignée sur le tableau */
+.bleed-xl{
+  width:100vw;
+  position:relative;
+  left:50%; right:50%;
+  margin-left:-50vw; margin-right:-50vw;
+  padding-inline: clamp(12px, 3vw, 32px);
+  margin-top:16px;
+}
+.bleed-xl .kan-board{ max-width:1760px; margin-inline:auto; }
+
+/* Board */
+.kan-board{ display:block; }
+
+/* Colonnes (empilées en mobile) */
+.kan-col{ margin-bottom:16px; }
+
+/* Titre de colonne */
+.kan-col__title{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  font-weight:900; padding:10px 14px; border-radius:14px; margin-bottom:10px;
+  color:#192033; border:1px solid var(--border);
+  background:var(--surface-muted, #F6F7FA);
+}
+.kan-col__title .count{
+  font-weight:800; font-size:.85rem; background:#fff; border:1px solid var(--border);
+  border-radius:999px; padding:2px 8px;
+}
+.kan-col__title.is-done{     border-left:10px solid var(--st-done); }
+.kan-col__title.is-progress{ border-left:10px solid var(--st-progress); }
+.kan-col__title.is-blocked{  border-left:10px solid var(--st-blocked); }
+.kan-col__title.is-todo{     border-left:10px solid var(--st-info); }
+
+/* Liste de cartes */
+.kan-col__list{ display:flex; flex-direction:column; gap:10px; }
+
+/* Carte */
+.kan-card{
+  background:#fff; border:1px solid var(--border);
+  border-radius:16px; padding:12px; box-shadow:var(--shadow-sm);
+}
+.kan-card.is-edit{ outline:2px solid var(--accent, #7C3AED); }
+.kan-card__top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.kan-card__title{ font-weight:800; }
+.kan-card__actions{ display:flex; align-items:center; gap:6px; }
+.btn.icon{ border:1px solid var(--border); background:#fff; border-radius:10px; padding:6px 8px; }
+.btn.icon:hover{ background:#fafafa; }
+.btn.icon.danger{ border-color:#ef4444; color:#b91c1c; }
+.btn.icon.danger:hover{ background:#fee2e2; }
+
+.kan-card__meta{ display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+.kan-card__notes{ margin-top:8px; color:#475569; font-size:.92rem; }
+
+/* Bouton ajout */
+.kan-add{
+  width:100%; border:1px dashed var(--border); border-radius:12px; padding:10px;
+  background:#fff; font-weight:800;
+}
+.kan-add:hover{ background:#fafafa; }
+
+/* ===== Formulaire d’édition dans la carte ===== */
+.kan-edit__grid{
+  display:grid; grid-template-columns: 1fr 1fr; gap:10px;
+}
+.field{ display:flex; flex-direction:column; gap:6px; }
+.label{ font-weight:800; font-size:.85rem; color:#475569; }
+.input, .select, .textarea{
+  width:100%;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:10px; background:#fff; outline:none;
+  font:inherit;
+}
+.textarea{ resize:vertical; }
+.field.span-2{ grid-column:1 / -1; }
+
+.kan-edit__actions{
+  display:flex; justify-content:flex-end; gap:8px; margin-top:10px;
+}
+
+/* ===== Desktop : 4 colonnes côte à côte ===== */
+@media (min-width:900px){
+  .kan-board{
+    display:grid; grid-template-columns: repeat(4, 1fr);
+    gap:16px;
+  }
+  .kan-col{ margin-bottom:0; }
+}
+
+/* ===== Dark mode lisible ===== */
+:root[data-theme="dark"] .kan-col__title{
+  background:#1a2030; border-color:#2a2f3a; color:#e5e7eb;
+}
+:root[data-theme="dark"] .kan-col__title .count{ background:#171a21; border-color:#2a2f3a; color:#e5e7eb; }
+:root[data-theme="dark"] .kan-card{ background:#171a21; border-color:#2a2f3a; box-shadow:none; }
+:root[data-theme="dark"] .kan-add{ background:#171a21; color:#e5e7eb; border-color:#2a2f3a; }
+:root[data-theme="dark"] .input,
+:root[data-theme="dark"] .select,
+:root[data-theme="dark"] .textarea{
+  background:#1f2532; border-color:#2f3847; color:#e5e7eb;
+}
+:root[data-theme="dark"] .label{ color:#b9c1cf; }
