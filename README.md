@@ -36,7 +36,6 @@ npm run dev
 📸 Aperçu
 
 
-
 📌 Améliorations futures
 
  Connexion utilisateur

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react"; 
 import { NavLink } from "react-router-dom";
 import "./navbar.css";
 
@@ -9,11 +9,17 @@ export default function NavBar() {
   const toggleMobile = () => setIsMobileMenuOpen(v => !v);
 
   return (
-    <nav className="navbar tone-indigo">{/* change "tone-*" si tu veux une autre palette */}
+    <nav className="navbar tone-indigo">
       <div className="navbar-container">
         {/* Brand */}
         <div className="navbar-brand">
-          <h2>FoxyTable</h2>
+          <a href="/" aria-label="Accueil FoxyTable">
+            <img
+              src="/Logo Foxy 2025@2x.png" 
+              alt="FoxyTable"
+              className="brand-logo"
+            />
+          </a>
         </div>
 
         {/* Desktop navigation */}

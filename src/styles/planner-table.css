@@ -1,7 +1,4 @@
-/* =========================================================
-   Planner Table — large + no vertical grid + zebra rows
-   Remplacez ENTIEREMENT src/styles/planner-table.css
-   ========================================================= */
+
 
 /* ----------- Wrapper ----------- */
 .table-wrap{ overflow:auto; }
@@ -17,7 +14,7 @@
   border-radius:12px;
   overflow:hidden;
 
-  /* variables locales (pour ne PAS dépendre d’un --border sombre) */
+  /* variables locales  */
   --tbl-outline: rgba(0,0,0,.06);
   --tbl-row-sep: rgba(0,0,0,.06);
   --tbl-header-bg:#fafafa;

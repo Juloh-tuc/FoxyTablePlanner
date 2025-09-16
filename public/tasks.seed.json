@@ -1,0 +1,30 @@
+[
+  {
+    "id": "t-001",
+    "titre": "Landing page",
+    "debut": "2025-09-08",
+    "echeance": "2025-09-15",
+    "admin": "Marie",
+    "statut": "En cours",
+    "priorite": "Élevé",
+    "budget": 1200,
+    "avancement": 45,
+    "bloquePar": "",
+    "remarques": "hero + pricing",
+    "etiquettes": ["Site Web", "Front - FO"]
+  },
+  {
+    "id": "t-002",
+    "titre": "API produits",
+    "debut": "2025-09-10",
+    "echeance": "2025-09-20",
+    "admin": "Jean",
+    "statut": "En attente",
+    "priorite": "Moyen",
+    "budget": 0,
+    "avancement": 0,
+    "bloquePar": "Schéma BDD",
+    "remarques": "",
+    "etiquettes": ["API", "Back - BO"]
+  }
+]

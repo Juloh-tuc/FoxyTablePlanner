@@ -1,13 +1,13 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { seed } from "../data";
 import type { Task, Statut } from "../types";
 import "../styles/planner-common.css";
 import "../styles/planner-agile.css";
 
-/** Colonnes affichées (conforme wireframe) */
+/** Colonnes affichées  */
 type ColKey = "done" | "progress" | "blocked" | "todo";
 
-/** Map statut → clé colonne (on regroupe "En attente" + "Pas commencé" dans TODO) */
+/** Map statut → clé colonne  */
 const toKey = (s: Statut): ColKey =>
   s === "Terminé" ? "done" :
   s === "En cours" ? "progress" :
@@ -21,10 +21,10 @@ const fromKey = (k: ColKey): Statut =>
 
 /** Définition des colonnes */
 const COLUMNS: Array<{ key: ColKey; title: string; stat: Statut }> = [
-  { key: "done",     title: "Fait",           stat: "Terminé" },
-  { key: "progress", title: "En cours",       stat: "En cours" },
-  { key: "blocked",  title: "Bloqué",         stat: "Bloqué" },
-  { key: "todo",     title: "Pas commencé",   stat: "Pas commencé" },
+  { key: "done",     title: "Fait",         stat: "Terminé" },
+  { key: "progress", title: "En cours",     stat: "En cours" },
+  { key: "blocked",  title: "Bloqué",       stat: "Bloqué" },
+  { key: "todo",     title: "Pas commencé", stat: "Pas commencé" },
 ];
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -36,9 +36,16 @@ export default function PlannerAgile(){
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Task> | null>(null);
 
+  // Quick-add state
+  const [qaOpen, setQaOpen] = useState(false);
+  const [qaTitle, setQaTitle] = useState("");
+  const [qaPrio, setQaPrio] = useState<Task["priorite"]>("Moyen");
+  const [qaAssignee, setQaAssignee] = useState("👤");
+  const qaInputRef = useRef<HTMLInputElement>(null);
+
   const admins = useMemo(() => uniqueAdmins(rows), [rows]);
 
-  /** Groupement par colonne (toujours initialisé) */
+  /** Groupement par colonne */
   const grouped = useMemo(() => {
     const map = new Map<ColKey, Task[]>();
     COLUMNS.forEach(c => map.set(c.key, []));
@@ -87,28 +94,54 @@ export default function PlannerAgile(){
     setRows(prev => prev.filter(t => t.id !== id));
     if (editingId === id) cancelEdit();
   };
-  const addTask = () => {
+
+  // ---------- Quick-add ----------
+  const openQuickAdd = () => {
+    setQaOpen(true);
+    requestAnimationFrame(() => qaInputRef.current?.focus());
+  };
+  const cancelQuickAdd = () => {
+    setQaOpen(false);
+    setQaTitle("");
+    setQaPrio("Moyen");
+    setQaAssignee("👤");
+  };
+  const submitQuickAdd = () => {
+    const title = qaTitle.trim();
+    if (!title) return;
     const t: Task = {
       id: uid(),
-      titre: "Nouvelle tâche",
+      titre: title,
       statut: "Pas commencé",
-      priorite: "Moyen",
-      admin: "👤",
+      priorite: qaPrio,
+      admin: qaAssignee || "👤",
       debut: new Date().toISOString().slice(0, 10),
       avancement: 0,
       remarques: "",
     };
     setRows(prev => [...prev, t]);
-    setEditingId(t.id);
-    setDraft({ ...t });
+    cancelQuickAdd();
   };
+
+  // Raccourci clavier: Ctrl/Cmd + N → ouvrir quick add
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === "n" || e.key === "N")) {
+        e.preventDefault();
+        if (!qaOpen) openQuickAdd();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [qaOpen]);
 
   // ---------- Rendu ----------
   return (
     <section className="agile">
       <h1 className="visually-hidden">Planner Agile</h1>
 
-      {/* largeur confortable en desktop */}
+      {/* Board centré */}
       <div className="bleed-xl">
         <div className="kan-board">
           {COLUMNS.map(col => (
@@ -124,11 +157,70 @@ export default function PlannerAgile(){
               </div>
 
               <div className="kan-col__list">
-                {/* bouton d’ajout en haut de "Pas commencé" */}
+                {/* Quick-add en haut de la colonne "Pas commencé" */}
                 {col.key === "todo" && (
-                  <button className="kan-add" type="button" onClick={addTask}>
-                    + Ajouter une tâche
-                  </button>
+                  <div className={`kan-quickadd${qaOpen ? " is-open" : ""}`}>
+                    {!qaOpen ? (
+                      <button
+                        className="kan-quickadd__cta"
+                        type="button"
+                        onClick={openQuickAdd}
+                        aria-haspopup="dialog"
+                        aria-expanded={qaOpen}
+                        title="Ajouter une tâche"
+                      >
+                        <span className="plus" aria-hidden>＋</span>
+                        <span>Ajouter une tâche</span>
+                      </button>
+                    ) : (
+                      <form
+                        className="kan-quickadd__form"
+                        onSubmit={(e) => { e.preventDefault(); submitQuickAdd(); }}
+                        aria-label="Ajouter une nouvelle tâche"
+                      >
+                        <input
+                          ref={qaInputRef}
+                          className="input title"
+                          placeholder="Titre de la tâche…"
+                          value={qaTitle}
+                          onChange={e => setQaTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") { e.preventDefault(); cancelQuickAdd(); }
+                          }}
+                          aria-required="true"
+                        />
+                        <select
+                          className="select prio"
+                          value={qaPrio}
+                          onChange={e => setQaPrio(e.target.value as Task["priorite"])}
+                          aria-label="Priorité"
+                        >
+                          <option value="Élevé">Élevé</option>
+                          <option value="Moyen">Moyen</option>
+                          <option value="Faible">Faible</option>
+                        </select>
+
+                        <input
+                          className="input assignee"
+                          list="qa-admins"
+                          placeholder="Assigné à…"
+                          value={qaAssignee}
+                          onChange={e => setQaAssignee(e.target.value)}
+                          aria-label="Assigné à"
+                        />
+                        <datalist id="qa-admins">
+                          {admins.map(a => <option key={a} value={a} />)}
+                        </datalist>
+
+                        <div className="actions">
+                          <button type="button" className="btn" onClick={cancelQuickAdd}>Annuler</button>
+                          <button type="submit" className="btn primary" disabled={!qaTitle.trim()}>
+                            Créer
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
                 )}
 
                 {grouped.get(col.key)!.map(t => {
@@ -145,8 +237,8 @@ export default function PlannerAgile(){
                           <div className="kan-card__top">
                             <strong className="kan-card__title">{t.titre}</strong>
                             <div className="kan-card__actions">
-                              <button className="btn icon" title="Edit" onClick={() => startEdit(t)}>✏️</button>
-                              <button className="btn icon danger" title="Delete" onClick={() => removeTask(t.id)}>🗑️</button>
+                              <button className="btn icon" title="Modifier" onClick={() => startEdit(t)} aria-label="Modifier la tâche">✏️</button>
+                              <button className="btn icon danger" title="Supprimer" onClick={() => removeTask(t.id)} aria-label="Supprimer la tâche">🗑️</button>
                             </div>
                           </div>
 
@@ -176,7 +268,7 @@ export default function PlannerAgile(){
                             </label>
 
                             <label className="field">
-                              <span className="label">Assignee</span>
+                              <span className="label">Assigné à</span>
                               <input
                                 className="input"
                                 list={`admins-${t.id}`}
@@ -226,6 +318,26 @@ export default function PlannerAgile(){
           ))}
         </div>
       </div>
+
+      {/* ----- Section Notes (post-it(s) sous le board) ----- */}
+      <section className="agile-notes" aria-label="Notes">
+        <div className="agile-notes__title">
+          <span>📝</span> Notes rapides
+        </div>
+        <div className="agile-notes__wrap">
+          <div className="sticky">
+            <textarea placeholder="Écris ton pense-bête ici…" />
+          </div>
+          {/* Tu peux dupliquer et changer la couleur : */}
+          <div className="sticky pink">
+            <textarea placeholder="Autre note (rose)…" />
+          </div>
+          <div className="sticky green">
+            <textarea placeholder="Checklist rapide (vert)…" />
+          </div>
+          {/* Ou n’en garder qu’un seul si tu préfères */}
+        </div>
+      </section>
     </section>
   );
 }

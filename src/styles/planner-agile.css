@@ -1,104 +1,283 @@
-/* ===== Agile (Kanban) — mobile-first, colonnes empilées ===== */
+/* ===========================
+   Planner Agile (Kanban) — board centré + post-it en dessous
+   =========================== */
 
-/* largeur confortable, alignée sur le tableau */
-.bleed-xl{
-  width:100vw;
-  position:relative;
-  left:50%; right:50%;
-  margin-left:-50vw; margin-right:-50vw;
-  padding-inline: clamp(12px, 3vw, 32px);
-  margin-top:16px;
+:root{
+  --wrap-max: 1400px;       /* largeur max centrée du board */
+  --gutter: 16px;
+
+  --border: #e5e7eb;
+  --text: #111827;
+  --muted: #6b7280;
+  --surface: #ffffff;
+  --surface-2: #fafafa;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.06);
+  --shadow: 0 4px 12px rgba(0,0,0,.08);
+
+  /* Palette statuts */
+  --done-bg:    #ecfdf5; --done-brd: #34d399; --done-txt: #065f46;
+  --prog-bg:    #fefce8; --prog-brd: #facc15; --prog-txt: #713f12;
+  --block-bg:   #fef2f2; --block-brd:#fca5a5; --block-txt:#7f1d1d;
+  --todo-bg:    #eff6ff; --todo-brd: #93c5fd; --todo-txt: #1e3a1a; /* plus lisible */
 }
-.bleed-xl .kan-board{ max-width:1760px; margin-inline:auto; }
 
-/* Board */
-.kan-board{ display:block; }
+/* ============ Layout général ============ */
+.agile{ display:block; }
+.bleed-xl{
+  max-width: var(--wrap-max);
+  margin-inline: auto;
+  padding: var(--gutter);
+}
 
-/* Colonnes (empilées en mobile) */
-.kan-col{ margin-bottom:16px; }
+/* ============ Onglets (mobile) ============ */
+.agile-tabs{
+  display:flex; gap:8px; align-items:center; overflow:auto;
+  padding:6px 2px; margin-bottom:10px;
+}
+.agile-tab{
+  padding:8px 12px; border-radius:999px;
+  border:1px solid var(--border); background:#fff; font-weight:700; white-space:nowrap;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.agile-tab .count{
+  margin-left:6px; font-weight:800; background:#f3f4f6; padding:2px 8px; border-radius:999px;
+}
+.agile-tab:hover{ transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.agile-tab.active{ background:#fafafa; box-shadow: var(--shadow-sm); }
+.agile-tabs .add{ margin-left:auto; }
 
-/* Titre de colonne */
+/* ============ Board ============ */
+.kan-board{
+  display:grid; grid-template-columns: 1fr; gap:12px;
+}
+@media (min-width:980px){
+  .kan-board{ grid-template-columns: repeat(4, 1fr); gap:14px; }
+}
+/* Colonnes confort desktop+ */
+@media (min-width: 1280px){
+  .kan-board{ grid-template-columns: repeat(4, minmax(320px, 1fr)); gap: 18px; }
+}
+
+.kan-col{
+  border:1px solid var(--border); background:var(--surface); border-radius:16px; overflow:hidden;
+  box-shadow: var(--shadow-sm);
+}
 .kan-col__title{
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  font-weight:900; padding:10px 14px; border-radius:14px; margin-bottom:10px;
-  color:#192033; border:1px solid var(--border);
-  background:var(--surface-muted, #F6F7FA);
+  font-weight:800; padding:10px 12px; background:var(--surface-2); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
 }
 .kan-col__title .count{
-  font-weight:800; font-size:.85rem; background:#fff; border:1px solid var(--border);
-  border-radius:999px; padding:2px 8px;
+  font-weight:800; padding:2px 8px; border-radius:999px;
+  border:1px solid var(--border); background:#fff; font-variant-numeric: tabular-nums;
 }
-.kan-col__title.is-done{     border-left:10px solid var(--st-done); }
-.kan-col__title.is-progress{ border-left:10px solid var(--st-progress); }
-.kan-col__title.is-blocked{  border-left:10px solid var(--st-blocked); }
-.kan-col__title.is-todo{     border-left:10px solid var(--st-info); }
 
-/* Liste de cartes */
-.kan-col__list{ display:flex; flex-direction:column; gap:10px; }
+/* En-têtes colorés par statut */
+.kan-col__title.is-done{
+  background: linear-gradient(90deg, rgba(52,211,153,.18), transparent 40%);
+  box-shadow: inset 4px 0 0 0 var(--done-brd);
+}
+.kan-col__title.is-progress{
+  background: linear-gradient(90deg, rgba(250,204,21,.18), transparent 40%);
+  box-shadow: inset 4px 0 0 0 var(--prog-brd);
+}
+.kan-col__title.is-blocked{
+  background: linear-gradient(90deg, rgba(252,165,165,.22), transparent 40%);
+  box-shadow: inset 4px 0 0 0 var(--block-brd);
+}
+.kan-col__title.is-todo{
+  background: linear-gradient(90deg, rgba(147,197,253,.20), transparent 40%);
+  box-shadow: inset 4px 0 0 0 var(--todo-brd);
+}
 
-/* Carte */
+.kan-col__list{ padding:10px; display:flex; flex-direction:column; gap:10px; min-height:120px; }
+
+/* ============ Cartes ============ */
 .kan-card{
-  background:#fff; border:1px solid var(--border);
-  border-radius:16px; padding:12px; box-shadow:var(--shadow-sm);
+  border:1px solid var(--border); background:#fff; border-radius:12px; padding:10px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow .12s ease, transform .12s ease;
 }
-.kan-card.is-edit{ outline:2px solid var(--accent, #7C3AED); }
-.kan-card__top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.kan-card__title{ font-weight:800; }
-.kan-card__actions{ display:flex; align-items:center; gap:6px; }
-.btn.icon{ border:1px solid var(--border); background:#fff; border-radius:10px; padding:6px 8px; }
-.btn.icon:hover{ background:#fafafa; }
-.btn.icon.danger{ border-color:#ef4444; color:#b91c1c; }
-.btn.icon.danger:hover{ background:#fee2e2; }
+.kan-card:hover{ transform: translateY(-1px); box-shadow: var(--shadow); }
+.kan-card.is-edit{ outline:2px dashed #c7d2fe; outline-offset:2px; }
 
-.kan-card__meta{ display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
-.kan-card__notes{ margin-top:8px; color:#475569; font-size:.92rem; }
-
-/* Bouton ajout */
-.kan-add{
-  width:100%; border:1px dashed var(--border); border-radius:12px; padding:10px;
-  background:#fff; font-weight:800;
+.kan-card__top{
+  display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:6px;
 }
-.kan-add:hover{ background:#fafafa; }
+.kan-card__title{ font-weight:800; color:var(--text); }
+.kan-card__actions{ display:flex; gap:6px; }
 
-/* ===== Formulaire d’édition dans la carte ===== */
-.kan-edit__grid{
-  display:grid; grid-template-columns: 1fr 1fr; gap:10px;
-}
-.field{ display:flex; flex-direction:column; gap:6px; }
-.label{ font-weight:800; font-size:.85rem; color:#475569; }
-.input, .select, .textarea{
-  width:100%;
-  padding:10px 12px;
+.btn{
+  padding:8px 12px; border-radius:10px; background:#fff; cursor:pointer;
   border:1px solid var(--border);
-  border-radius:10px; background:#fff; outline:none;
-  font:inherit;
+  transition: box-shadow .12s ease, transform .12s ease, background .12s ease, border-color .12s ease;
+}
+.btn:hover{ box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.btn.primary{ background:#7C3AED; color:#fff; border-color:#7C3AED; }
+.btn.icon{ padding:6px 8px; }
+.btn.danger { background:#fee2e2; border-color:#fecaca; color:#7a1c1c; }
+.btn.danger:hover{ background:#fff1f2; }
+
+.kan-card__meta{
+  display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;
+}
+
+/* Tags */
+.tag{
+  display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:.85rem; font-weight:700;
+  background:#EEF2FF; border:1px solid var(--border); color:#1e293b;
+}
+
+/* Notes */
+.kan-card__notes{ display:flex; flex-direction:column; gap:4px; }
+.kan-card__notes textarea{
+  border:1px solid var(--border); border-radius:10px; padding:8px 10px; resize:vertical;
+}
+
+/* Form inline (édition détaillée) */
+.kan-edit__grid{
+  display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:8px;
+}
+.field{ display:flex; flex-direction:column; gap:4px; font-size:.9rem; }
+.field .label{ font-weight:700; color:#111827; }
+.input, .select, .textarea{
+  padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff;
 }
 .textarea{ resize:vertical; }
-.field.span-2{ grid-column:1 / -1; }
+.field.span-2{ grid-column: 1 / -1; }
+.kan-edit__actions{ display:flex; justify-content:flex-end; gap:8px; }
 
-.kan-edit__actions{
-  display:flex; justify-content:flex-end; gap:8px; margin-top:10px;
+/* ============ Badges de priorité ============ */
+.badge-prio{
+  display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:.85rem; font-weight:700;
+  border:1px solid var(--border); background:#fff; color:#374151;
+}
+.badge-prio .dot{ width:8px; height:8px; border-radius:999px; display:inline-block; margin-right:2px; }
+.badge-prio[data-level="Élevé"] .dot{ background:#ef4444; }
+.badge-prio[data-level="Moyen"] .dot{ background:#f59e0b; }
+.badge-prio[data-level="Faible"] .dot{ background:#10b981; }
+
+/* ============ Badges de statut (couleurs) ============ */
+.status-chip{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 10px; border-radius:999px; font-size:.85rem; font-weight:700;
+  border:1px solid var(--border);
+}
+.status-chip .dot{ width:8px; height:8px; border-radius:999px; display:inline-block; }
+
+.status-chip.is-done{    background: var(--done-bg);  border-color: var(--done-brd);  color: var(--done-txt); }
+.status-chip.is-done .dot{ background: var(--done-brd); }
+.status-chip.is-progress{ background: var(--prog-bg);  border-color: var(--prog-brd);  color: var(--prog-txt); }
+.status-chip.is-progress .dot{ background: var(--prog-brd); }
+.status-chip.is-blocked{ background: var(--block-bg); border-color: var(--block-brd); color: var(--block-txt); }
+.status-chip.is-blocked .dot{ background: var(--block-brd); }
+.status-chip.is-todo{    background: var(--todo-bg);  border-color: var(--todo-brd);  color: var(--todo-txt); }
+.status-chip.is-todo .dot{ background: var(--todo-brd); }
+
+/* ============ Quick-add (bouton + mini-formulaire) ============ */
+.kan-quickadd { display:block; }
+
+.kan-quickadd__cta{
+  width:100%;
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-radius:12px;
+  border:1.5px dashed var(--border);
+  background: #fcfbff;
+  font-weight:800; cursor:pointer;
+  transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease, background .12s ease;
+}
+.kan-quickadd__cta .plus{
+  display:inline-grid; place-items:center;
+  width:28px; height:28px; border-radius:999px;
+  border:1px solid var(--border); font-size:18px; line-height:1;
+}
+.kan-quickadd__cta:hover{
+  transform: translateY(-1px);
+  border-color:#C4B5FD; /* violet clair */
+  box-shadow: var(--shadow-sm);
+  background:#fff;
+}
+.kan-quickadd__cta:focus-visible{
+  outline:3px solid #C4B5FD; outline-offset:2px;
 }
 
-/* ===== Desktop : 4 colonnes côte à côte ===== */
-@media (min-width:900px){
-  .kan-board{
-    display:grid; grid-template-columns: repeat(4, 1fr);
-    gap:16px;
-  }
-  .kan-col{ margin-bottom:0; }
+.kan-quickadd__form{
+  display:grid; gap:8px;
+  grid-template-columns: 1fr minmax(120px, 140px) minmax(140px, 1fr);
+  border:1px solid var(--border); border-radius:12px; padding:10px;
+  background:#fff; box-shadow: var(--shadow-sm);
+}
+.kan-quickadd__form .input,
+.kan-quickadd__form .select{
+  padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff;
+}
+.kan-quickadd__form .title{ grid-column: 1 / -1; }
+.kan-quickadd__form .prio{ grid-column: 1 / 2; }
+.kan-quickadd__form .assignee{ grid-column: 2 / 3; }
+.kan-quickadd__form .actions{
+  grid-column: 3 / 4;
+  display:flex; justify-content:flex-end; gap:8px; align-items:center;
 }
 
-/* ===== Dark mode lisible ===== */
-:root[data-theme="dark"] .kan-col__title{
-  background:#1a2030; border-color:#2a2f3a; color:#e5e7eb;
+@media (min-width:980px){
+  .kan-quickadd__form .title{ grid-column: 1 / 4; }
+  .kan-quickadd__form .prio{ grid-column: 1 / 2; }
+  .kan-quickadd__form .assignee{ grid-column: 2 / 3; }
+  .kan-quickadd__form .actions{ grid-column: 3 / 4; }
 }
-:root[data-theme="dark"] .kan-col__title .count{ background:#171a21; border-color:#2a2f3a; color:#e5e7eb; }
-:root[data-theme="dark"] .kan-card{ background:#171a21; border-color:#2a2f3a; box-shadow:none; }
-:root[data-theme="dark"] .kan-add{ background:#171a21; color:#e5e7eb; border-color:#2a2f3a; }
-:root[data-theme="dark"] .input,
-:root[data-theme="dark"] .select,
-:root[data-theme="dark"] .textarea{
-  background:#1f2532; border-color:#2f3847; color:#e5e7eb;
+@media (max-width:979px){
+  .kan-quickadd__form{ grid-template-columns: 1fr 1fr; }
+  .kan-quickadd__form .title{ grid-column: 1 / -1; }
+  .kan-quickadd__form .prio{ grid-column: 1 / 2; }
+  .kan-quickadd__form .assignee{ grid-column: 2 / 3; }
+  .kan-quickadd__form .actions{ grid-column: 1 / -1; justify-content:flex-end; }
 }
-:root[data-theme="dark"] .label{ color:#b9c1cf; }
+
+/* ============ Section Notes (post-its sous le board) ============ */
+.agile-notes{
+  max-width: var(--wrap-max);
+  margin: 24px auto 8px auto;
+  padding: 0 var(--gutter);
+}
+.agile-notes__title{
+  display:flex; align-items:center; gap:10px;
+  font-weight:800; color:var(--muted); margin-bottom:10px;
+  letter-spacing:.02em; text-transform:uppercase; font-size:.85rem;
+}
+.agile-notes__wrap{
+  display: grid;
+  grid-template-columns: repeat( auto-fit, minmax(220px, 1fr) );
+  gap: 14px;
+}
+
+/* Post-it carte */
+.sticky{
+  background:#fff7cc;         /* jaune pastel par défaut */
+  border:1px solid #f4d35e;
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 8px 20px rgba(0,0,0,.08);
+  transform: rotate(-1.5deg);
+  min-height: 220px;
+  display:flex;
+}
+.sticky textarea{
+  flex:1; border:none; resize:vertical; min-height: 220px;
+  background:transparent; padding:14px;
+  font-family: "Comic Sans MS", "Marker Felt", cursive, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: 1rem; font-weight: 500; color:#3b2f00; line-height:1.4;
+}
+.sticky textarea:focus{ outline:none; }
+
+/* Variantes */
+.sticky.pink{ background:#ffe9f2; border-color:#fbcfe8; }
+.sticky.green{ background:#e9ffef; border-color:#bbf7d0; }
+.sticky.blue{ background:#e6f0ff; border-color:#c7d7ff; }
+
+/* ============ Accessibilité ============ */
+.visually-hidden{
+  position:absolute!important; height:1px; width:1px; overflow:hidden; clip:rect(1px,1px,1px,1px);
+  white-space:nowrap; border:0; padding:0; margin:-1px;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-visible{
+  outline:3px solid #C4B5FD; outline-offset:2px;
+}

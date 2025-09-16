@@ -1,109 +1,345 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { seed } from "../data";
 import type { Task, Statut } from "../types";
 import "../styles/planner-common.css";
 import "../styles/planner-week.css";
 
-/* ----------------------- helpers date ----------------------- */
-const DAY = 24 * 60 * 60 * 1000;
-const toISO = (d: Date) => d.toISOString().slice(0, 10);
-const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const startOfMonday = (base = new Date()) => {
-  const d = new Date(base); d.setHours(0,0,0,0);
-  const js = d.getDay(); const diff = (js === 0 ? -6 : 1 - js); d.setDate(d.getDate() + diff);
-  return d;
-};
-const diffDays = (a: Date, b: Date) => Math.floor((a.getTime() - b.getTime()) / DAY);
+/* ----------------------- Constants & Types ----------------------- */
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
-/* -------------------- unions & helpers typés -------------------- */
-const PRIOS = ["Faible", "Moyen", "Élevé"] as const;
-type Prio = typeof PRIOS[number];
+const PRIORITIES = ["Faible", "Moyen", "Élevé"] as const;
+type Priority = typeof PRIORITIES[number];
 
-const STATUS = ["Pas commencé","En attente","En cours","Bloqué","Terminé"] as const;
-type StatusL = typeof STATUS[number];
+const STATUSES = ["Pas commencé", "En attente", "En cours", "Bloqué", "Terminé"] as const;
+type StatusLocal = typeof STATUSES[number];
 
-function nextIn<T extends readonly string[]>(arr: T, cur: T[number]): T[number] {
-  const i = Math.max(0, arr.indexOf(cur));
-  return arr[(i + 1) % arr.length] as T[number];
+const STATUS_STYLE_MAP = {
+  "Terminé": "done",
+  "En cours": "progress", 
+  "Bloqué": "blocked",
+  "En attente": "wait",
+  "Pas commencé": "info"
+} as const;
+
+interface TaskBar {
+  task: Task;
+  startIdx: number;
+  endIdx: number;
+  row: number;
 }
 
-const asPrio = (p: Task["priorite"] | undefined): Prio =>
-  (PRIOS as readonly string[]).includes((p ?? "") as string) ? (p as Prio) : "Moyen";
-
-const asStatus = (s: Statut | undefined): StatusL =>
-  (STATUS as readonly string[]).includes((s ?? "") as string) ? (s as StatusL) : "Pas commencé";
-
-/* ---------------------- visu / style keys ---------------------- */
-const sKey = (s: Statut) =>
-  s === "Terminé" ? "done" :
-  s === "En cours" ? "progress" :
-  s === "Bloqué" ? "blocked" :
-  s === "En attente" ? "wait" : "info";
-
-const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-
-/* --------------------------- types UI --------------------------- */
-type Draft = {
+interface TaskDraft {
   id?: string;
   titre: string;
   admin: string;
-  priorite: Prio;
-  statut: StatusL;
-  debut: string;     // ISO YYYY-MM-DD
-  echeance: string;  // ISO YYYY-MM-DD
+  priorite: Priority;
+  statut: StatusLocal;
+  debut: string;
+  echeance: string;
+}
+
+/* ----------------------- Utility Functions ----------------------- */
+const dateUtils = {
+  toISO: (date: Date): string => date.toISOString().slice(0, 10),
+  
+  addDays: (date: Date, days: number): Date => {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  },
+  
+  getStartOfWeek: (baseDate = new Date()): Date => {
+    const date = new Date(baseDate);
+    date.setHours(0, 0, 0, 0);
+    const dayOfWeek = date.getDay();
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    date.setDate(date.getDate() - daysToSubtract);
+    return date;
+  },
+  
+  getDaysDifference: (date1: Date, date2: Date): number =>
+    Math.floor((date1.getTime() - date2.getTime()) / DAY_MS),
+    
+  isDateInRange: (date: Date, start: Date, end: Date): boolean =>
+    date >= start && date <= end
 };
 
-/* *********************** composant page ************************ */
-export default function PlannerWeek() {
-  const [rows, setRows] = useState<Task[]>(() => JSON.parse(JSON.stringify(seed)));
-  const [anchor, setAnchor] = useState<Date>(() => startOfMonday());
+const taskUtils = {
+  validatePriority: (priority: unknown): Priority =>
+    PRIORITIES.includes(priority as Priority) ? (priority as Priority) : "Moyen",
+    
+  validateStatus: (status: unknown): StatusLocal =>
+    STATUSES.includes(status as StatusLocal) ? (status as StatusLocal) : "Pas commencé",
+    
+  getStatusStyleKey: (status: Statut): string =>
+    STATUS_STYLE_MAP[status as keyof typeof STATUS_STYLE_MAP] || "info",
+    
+  generateId: (): string => Math.random().toString(36).slice(2, 9)
+};
 
-  const weekStart = anchor;
-  const weekEnd   = addDays(weekStart, 6);
-
-  const days = useMemo(() => Array.from({length:7},(_,i)=>addDays(weekStart,i)), [weekStart]);
-
-  const admins = useMemo(
-    () => Array.from(new Set(rows.map(r => r.admin).filter(Boolean))) as string[],
-    [rows]
+/* ----------------------- Custom Hooks ----------------------- */
+const useTasks = (initialTasks: Task[]) => {
+  const [tasks, setTasks] = useState<Task[]>(() => 
+    JSON.parse(JSON.stringify(initialTasks))
   );
 
-  const uid = () => Math.random().toString(36).slice(2,9);
+  const addTask = useCallback((newTask: Omit<Task, 'id'>) => {
+    const taskWithId = { ...newTask, id: taskUtils.generateId() };
+    setTasks(prev => [...prev, taskWithId]);
+  }, []);
 
-  /* ------------------- modal nouvel/éditer task ------------------- */
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
+    setTasks(prev => prev.map(task => 
+      task.id === id ? { ...task, ...updates } : task
+    ));
+  }, []);
 
-  const openNew = (dayIdx: number) => {
-    const d = toISO(addDays(weekStart, dayIdx));
-    setDraft({
-      titre: "Nouvelle tâche",
-      admin: admins[0] ?? "👤",
-      priorite: "Moyen",
-      statut: "Pas commencé",
-      debut: d,
-      echeance: d,
+  const deleteTask = useCallback((id: string) => {
+    setTasks(prev => prev.filter(task => task.id !== id));
+  }, []);
+
+  const admins = useMemo(() => 
+    Array.from(new Set(tasks.map(task => task.admin).filter(Boolean))),
+    [tasks]
+  );
+
+  return { tasks, addTask, updateTask, deleteTask, admins };
+};
+
+const useTaskBars = (tasks: Task[], weekStart: Date, weekEnd: Date) => {
+  return useMemo(() => {
+    const visibleTasks = tasks.filter(task => {
+      const startDate = task.debut ? new Date(task.debut) : null;
+      const endDate = task.echeance ? new Date(task.echeance) : startDate;
+      
+      if (!startDate || !endDate) return false;
+      return startDate <= weekEnd && endDate >= weekStart;
     });
-    setOpen(true);
+
+    const baseBars = visibleTasks.map(task => {
+      const startDate = task.debut ? new Date(task.debut) : weekStart;
+      const endDate = task.echeance ? new Date(task.echeance) : startDate;
+      
+      const clampedStart = startDate < weekStart ? weekStart : startDate;
+      const clampedEnd = endDate > weekEnd ? weekEnd : endDate;
+      
+      const startIdx = Math.max(0, Math.min(6, 
+        dateUtils.getDaysDifference(clampedStart, weekStart)
+      ));
+      const endIdx = Math.max(0, Math.min(6, 
+        dateUtils.getDaysDifference(clampedEnd, weekStart)
+      ));
+      
+      return { task, startIdx, endIdx };
+    }).sort((a, b) => {
+      const startDiff = a.startIdx - b.startIdx;
+      if (startDiff !== 0) return startDiff;
+      return (b.endIdx - b.startIdx) - (a.endIdx - a.startIdx);
+    });
+
+    const rowEndPositions: number[] = [];
+    const taskBars: TaskBar[] = [];
+    
+    baseBars.forEach(bar => {
+      let row = 0;
+      while (rowEndPositions[row] !== undefined && rowEndPositions[row] >= bar.startIdx) {
+        row++;
+      }
+      rowEndPositions[row] = bar.endIdx;
+      taskBars.push({ ...bar, row });
+    });
+
+    return {
+      bars: taskBars,
+      maxRows: taskBars.reduce((max, bar) => Math.max(max, bar.row), 0) + 1
+    };
+  }, [tasks, weekStart, weekEnd]);
+};
+
+/* ----------------------- Modal Component ----------------------- */
+interface TaskModalProps {
+  isOpen: boolean;
+  draft: TaskDraft | null;
+  admins: string[];
+  onClose: () => void;
+  onSave: (draft: TaskDraft) => void;
+  onDelete: () => void;
+  onChange: (draft: TaskDraft) => void;
+}
+
+const TaskModal: React.FC<TaskModalProps> = ({
+  isOpen,
+  draft,
+  admins,
+  onClose,
+  onSave,
+  onDelete,
+  onChange
+}) => {
+  if (!isOpen || !draft) return null;
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
   };
 
-  const openEdit = (t: Task) => {
-    setDraft({
-      id: t.id,
-      titre: t.titre,
-      admin: t.admin ?? "",
-      priorite: asPrio(t.priorite),
-      statut: asStatus(t.statut),
-      debut: t.debut ?? toISO(new Date()),
-      echeance: t.echeance ?? (t.debut ?? toISO(new Date())),
-    });
-    setOpen(true);
-  };
+  return (
+    <div className="modal-backdrop" onClick={handleBackdropClick}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <h2>{draft.id ? "Modifier la tâche" : "Nouvelle tâche"}</h2>
 
-  const saveDraft = () => {
-    if (!draft) return;
-    const payload: Task = {
-      id: draft.id ?? uid(),
+        <div className="form">
+          <label>
+            <span>Titre</span>
+            <input 
+              value={draft.titre} 
+              onChange={e => onChange({...draft, titre: e.target.value})}
+              placeholder="Entrez le titre de la tâche"
+            />
+          </label>
+
+          <label>
+            <span>Responsable</span>
+            <input 
+              list="admins-list" 
+              value={draft.admin} 
+              onChange={e => onChange({...draft, admin: e.target.value})}
+              placeholder="Nom du responsable"
+            />
+            <datalist id="admins-list">
+              {admins.map(admin => <option key={admin} value={admin} />)}
+            </datalist>
+          </label>
+
+          <label>
+            <span>Statut</span>
+            <select 
+              value={draft.statut} 
+              onChange={e => onChange({...draft, statut: e.target.value as StatusLocal})}
+            >
+              {STATUSES.map(status => 
+                <option key={status} value={status}>{status}</option>
+              )}
+            </select>
+          </label>
+
+          <label>
+            <span>Priorité</span>
+            <select 
+              value={draft.priorite} 
+              onChange={e => onChange({...draft, priorite: e.target.value as Priority})}
+            >
+              {PRIORITIES.map(priority => 
+                <option key={priority} value={priority}>{priority}</option>
+              )}
+            </select>
+          </label>
+
+          <label>
+            <span>Date de début</span>
+            <input 
+              type="date" 
+              value={draft.debut} 
+              onChange={e => onChange({...draft, debut: e.target.value})} 
+            />
+          </label>
+
+          <label>
+            <span>Date de fin</span>
+            <input 
+              type="date" 
+              value={draft.echeance} 
+              onChange={e => onChange({...draft, echeance: e.target.value})} 
+            />
+          </label>
+        </div>
+
+        <div className="modal-actions">
+          {draft.id && (
+            <button className="btn danger" onClick={onDelete}>
+              Supprimer
+            </button>
+          )}
+          <div style={{flex: 1}} />
+          <button className="btn" onClick={onClose}>
+            Annuler
+          </button>
+          <button className="btn primary" onClick={() => onSave(draft)}>
+            Sauvegarder
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ----------------------- Main Component ----------------------- */
+export default function PlannerWeek() {
+  const { tasks, addTask, updateTask, deleteTask, admins } = useTasks(seed);
+  const [weekStart, setWeekStart] = useState(() => dateUtils.getStartOfWeek());
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    draft: TaskDraft | null;
+  }>({
+    isOpen: false,
+    draft: null
+  });
+
+  const weekEnd = dateUtils.addDays(weekStart, 6);
+  const weekDays = useMemo(() => 
+    Array.from({length: 7}, (_, i) => dateUtils.addDays(weekStart, i)),
+    [weekStart]
+  );
+
+  const { bars, maxRows } = useTaskBars(tasks, weekStart, weekEnd);
+
+  const today = new Date();
+  const todayIndex = dateUtils.isDateInRange(today, weekStart, weekEnd)
+    ? dateUtils.getDaysDifference(today, weekStart)
+    : -1;
+
+  /* ----------------------- Event Handlers ----------------------- */
+  const navigateWeek = useCallback((direction: -1 | 1) => {
+    setWeekStart(prev => dateUtils.addDays(prev, direction * 7));
+  }, []);
+
+  const openNewTaskModal = useCallback((dayIndex: number) => {
+    const selectedDay = dateUtils.toISO(dateUtils.addDays(weekStart, dayIndex));
+    setModalState({
+      isOpen: true,
+      draft: {
+        titre: "",
+        admin: admins[0] || "",
+        priorite: "Moyen",
+        statut: "Pas commencé",
+        debut: selectedDay,
+        echeance: selectedDay,
+      }
+    });
+  }, [weekStart, admins]);
+
+  const openEditTaskModal = useCallback((task: Task) => {
+    setModalState({
+      isOpen: true,
+      draft: {
+        id: task.id,
+        titre: task.titre,
+        admin: task.admin || "",
+        priorite: taskUtils.validatePriority(task.priorite),
+        statut: taskUtils.validateStatus(task.statut),
+        debut: task.debut || dateUtils.toISO(new Date()),
+        echeance: task.echeance || task.debut || dateUtils.toISO(new Date()),
+      }
+    });
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalState({ isOpen: false, draft: null });
+  }, []);
+
+  const saveTask = useCallback((draft: TaskDraft) => {
+    const taskData: Task = {
+      id: draft.id || taskUtils.generateId(),
       titre: draft.titre,
       admin: draft.admin,
       priorite: draft.priorite,
@@ -114,186 +350,161 @@ export default function PlannerWeek() {
       avancement: 0,
       remarques: "",
     };
-    setRows(prev => {
-      const idx = prev.findIndex(r => r.id === payload.id);
-      if (idx === -1) return [...prev, payload];
-      const copy = prev.slice(); copy[idx] = payload; return copy;
-    });
-    setOpen(false); setDraft(null);
-  };
 
-  const deleteDraft = () => {
-    if (draft?.id) setRows(prev => prev.filter(t => t.id !== draft.id));
-    setOpen(false); setDraft(null);
-  };
+    if (draft.id) {
+      updateTask(draft.id, taskData);
+    } else {
+      addTask(taskData);
+    }
+    
+    closeModal();
+  }, [addTask, updateTask, closeModal]);
 
-  /* -------------- layout : barres + empilement rows -------------- */
-  type Bar = { task: Task; startIdx: number; endIdx: number; row: number };
+  const handleDeleteTask = useCallback(() => {
+    if (modalState.draft?.id) {
+      deleteTask(modalState.draft.id);
+      closeModal();
+    }
+  }, [modalState.draft?.id, deleteTask, closeModal]);
 
-  const bars: Bar[] = useMemo(() => {
-    const visibles = rows.filter(t => {
-      const d0 = t.debut ? new Date(t.debut) : null;
-      const d1 = t.echeance ? new Date(t.echeance) : d0;
-      if (!d0 || !d1) return false;
-      return d0 <= weekEnd && d1 >= weekStart;
-    });
+  const updateDraft = useCallback((newDraft: TaskDraft) => {
+    setModalState(prev => ({ ...prev, draft: newDraft }));
+  }, []);
 
-    const base = visibles.map(t => {
-      const d0 = t.debut ? new Date(t.debut) : weekStart;
-      const d1 = t.echeance ? new Date(t.echeance) : d0;
-      const s = Math.max(0, Math.min(6, diffDays(d0 < weekStart ? weekStart : d0, weekStart)));
-      const e = Math.max(0, Math.min(6, diffDays(d1 > weekEnd ? weekEnd : d1, weekStart)));
-      return { task: t, startIdx: s, endIdx: e };
-    }).sort((a,b) => a.startIdx - b.startIdx || (b.endIdx - b.startIdx) - (a.endIdx - a.startIdx));
-
-    const rowEnds: number[] = [];
-    const out: Bar[] = [];
-    base.forEach(b => {
-      let r = 0;
-      while (rowEnds[r] !== undefined && rowEnds[r] >= b.startIdx) r++;
-      rowEnds[r] = b.endIdx;
-      out.push({ ...b, row: r });
-    });
-    return out;
-  }, [rows, weekStart, weekEnd]);
-
-  const maxRows = bars.reduce((m,b) => Math.max(m, b.row), 0) + 1;
-
-  /* -------------------------- today marker -------------------------- */
-  const today = new Date();
-  const isInWeek = today >= weekStart && today <= addDays(weekStart, 6);
-  const todayIdx = isInWeek ? diffDays(today, weekStart) : -1;
-
-  /* ------------------------------- UI ------------------------------- */
+  /* ----------------------- Render ----------------------- */
   return (
     <section className="week-cells">
-      <h1 className="visually-hidden">Planner — Semaine (cellules)</h1>
+      <h1 className="visually-hidden">Planificateur - Vue Semaine</h1>
 
       <div className="week-controls">
-        <button className="btn" onClick={() => setAnchor(addDays(anchor, -7))}>←</button>
+        <button 
+          className="btn" 
+          onClick={() => navigateWeek(-1)}
+          aria-label="Semaine précédente"
+        >
+          ←
+        </button>
         <div className="week-title">
-          Week {toISO(weekStart)} → {toISO(weekEnd)}
+          Semaine du {dateUtils.toISO(weekStart)} au {dateUtils.toISO(weekEnd)}
         </div>
-        <button className="btn" onClick={() => setAnchor(addDays(anchor, +7))}>→</button>
+        <button 
+          className="btn" 
+          onClick={() => navigateWeek(1)}
+          aria-label="Semaine suivante"
+        >
+          →
+        </button>
       </div>
 
       <div className="bleed-xl">
         <div className="board card">
-          {/* en-tête jours */}
           <div className="head grid7">
-            <div className="day-head spacer">Project</div>
-            {days.map((d,i)=>(
-              <div key={i} className={`day-head ${i===todayIdx ? "is-today":""}`}>
-                <div className="dow">{DOW[i]}</div>
-                <div className="dom">{String(d.getDate()).padStart(2,"0")}</div>
+            <div className="day-head spacer">Projet</div>
+            {weekDays.map((day, index) => (
+              <div 
+                key={index} 
+                className={`day-head ${index === todayIndex ? "is-today" : ""}`}
+              >
+                <div className="dow">{DAYS_OF_WEEK[index]}</div>
+                <div className="dom">
+                  {String(day.getDate()).padStart(2, "0")}
+                </div>
               </div>
             ))}
           </div>
 
-          {/* corps */}
-          <div className="body grid7" style={{ gridTemplateRows: `repeat(${Math.max(2, maxRows)}, var(--row-h))` }}>
-            {/* colonne gauche vide (aligne la grille) */}
-            <div className="col-left"></div>
+          <div 
+            className="body grid7" 
+            style={{ 
+              gridTemplateRows: `repeat(${Math.max(2, maxRows)}, var(--row-h))` 
+            }}
+          >
+            <div className="col-left" />
 
-            {/* ligne d'action : Add task pour chaque jour */}
-            {days.map((_,i)=>(
-              <div key={i} className="cell" onClick={() => openNew(i)}>
-                <button type="button" className="add-btn">+ Add task</button>
+            {weekDays.map((_, index) => (
+              <div 
+                key={index} 
+                className="cell" 
+                onClick={() => openNewTaskModal(index)}
+              >
+                <button type="button" className="add-btn">
+                  + Ajouter une tâche
+                </button>
               </div>
             ))}
 
-            {/* pads pour les lignes suivantes */}
-            {Array.from({length: Math.max(1, maxRows-1)}).map((_,r)=>(
-              <React.Fragment key={`rowpad-${r}`}>
-                <div className="col-left"></div>
-                {Array.from({length:7}).map((__,i)=><div key={`pad-${r}-${i}`} className="cell pad"></div>)}
+            {Array.from({ length: Math.max(1, maxRows - 1) }).map((_, rowIndex) => (
+              <React.Fragment key={`row-${rowIndex}`}>
+                <div className="col-left" />
+                {Array.from({ length: 7 }).map((_, colIndex) => (
+                  <div 
+                    key={`cell-${rowIndex}-${colIndex}`} 
+                    className="cell pad" 
+                  />
+                ))}
               </React.Fragment>
             ))}
 
-            {/* barres de tâches */}
-            {bars.map(b => (
+            {bars.map(bar => (
               <div
-                key={b.task.id}
-                className={`task-bar is-${sKey(b.task.statut)}`}
+                key={bar.task.id}
+                className={`task-bar is-${taskUtils.getStatusStyleKey(bar.task.statut)}`}
                 style={{
-                  gridColumn: `${b.startIdx + 2} / ${b.endIdx + 3}`,
-                  gridRow: b.row + 1,
+                  gridColumn: `${bar.startIdx + 2} / ${bar.endIdx + 3}`,
+                  gridRow: bar.row + 1,
                 }}
-                title={`${b.task.titre} — ${b.task.debut}${b.task.echeance ? " → " + b.task.echeance : ""}`}
-                onClick={(e)=>{ e.stopPropagation(); openEdit(b.task); }}
+                title={`${bar.task.titre} — ${bar.task.debut}${
+                  bar.task.echeance ? " → " + bar.task.echeance : ""
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditTaskModal(bar.task);
+                }}
               >
-                <div className="bar-title">{b.task.titre}</div>
+                <div className="bar-title">{bar.task.titre}</div>
                 <div className="bar-meta">
-                  <span className="badge-prio" data-level={asPrio(b.task.priorite)}><span className="dot"></span>{asPrio(b.task.priorite)}</span>
-                  <span className={`status-chip is-${sKey(b.task.statut)}`}><span className={`dot ${sKey(b.task.statut)}`}></span>{b.task.statut}</span>
-                  <span className="tag">{b.task.admin ?? "👤"}</span>
+                  <span 
+                    className="badge-prio" 
+                    data-level={taskUtils.validatePriority(bar.task.priorite)}
+                  >
+                    <span className="dot" />
+                    {taskUtils.validatePriority(bar.task.priorite)}
+                  </span>
+                  <span 
+                    className={`status-chip is-${taskUtils.getStatusStyleKey(bar.task.statut)}`}
+                  >
+                    <span 
+                      className={`dot ${taskUtils.getStatusStyleKey(bar.task.statut)}`} 
+                    />
+                    {bar.task.statut}
+                  </span>
+                  <span className="tag">{bar.task.admin || "👤"}</span>
                 </div>
               </div>
             ))}
 
-            {/* today line */}
-            {isInWeek && (
+            {todayIndex >= 0 && (
               <div
                 className="today-line"
-                style={{ gridColumn: `${todayIdx + 2} / span 1`, gridRow: `1 / ${Math.max(2, maxRows)+1}` }}
+                style={{ 
+                  gridColumn: `${todayIndex + 2} / span 1`, 
+                  gridRow: `1 / ${Math.max(2, maxRows) + 1}` 
+                }}
               />
             )}
           </div>
         </div>
       </div>
 
-      {/* -------------------- MODAL CRÉATION / ÉDITION -------------------- */}
-      {open && draft && (
-        <div className="modal-backdrop" onClick={()=>{ setOpen(false); setDraft(null); }}>
-          <div className="modal" onClick={e=>e.stopPropagation()}>
-            <h2>{draft.id ? "Edit task" : "New task"}</h2>
-
-            <div className="form">
-              <label>
-                <span>Title</span>
-                <input value={draft.titre} onChange={e=>setDraft({...draft, titre: e.target.value})} />
-              </label>
-
-              <label>
-                <span>Admin</span>
-                <input list="admins-list" value={draft.admin} onChange={e=>setDraft({...draft, admin: e.target.value})} />
-                <datalist id="admins-list">{admins.map(a=><option key={a} value={a} />)}</datalist>
-              </label>
-
-              <label>
-                <span>Status</span>
-                <select value={draft.statut} onChange={e=>setDraft({...draft, statut: e.target.value as StatusL})}>
-                  {STATUS.map(s=><option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
-
-              <label>
-                <span>Priority</span>
-                <select value={draft.priorite} onChange={e=>setDraft({...draft, priorite: e.target.value as Prio})}>
-                  {PRIOS.map(p=><option key={p} value={p}>{p}</option>)}
-                </select>
-              </label>
-
-              <label>
-                <span>Start</span>
-                <input type="date" value={draft.debut} onChange={e=>setDraft({...draft, debut: e.target.value})} />
-              </label>
-
-              <label>
-                <span>End</span>
-                <input type="date" value={draft.echeance} onChange={e=>setDraft({...draft, echeance: e.target.value})} />
-              </label>
-            </div>
-
-            <div className="modal-actions">
-              {draft.id && <button className="btn danger" onClick={deleteDraft}>Delete</button>}
-              <span style={{flex:1}} />
-              <button className="btn" onClick={()=>{ setOpen(false); setDraft(null); }}>Cancel</button>
-              <button className="btn primary" onClick={saveDraft}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TaskModal
+        isOpen={modalState.isOpen}
+        draft={modalState.draft}
+        admins={admins.filter((admin): admin is string => admin !== undefined)}
+        onClose={closeModal}
+        onSave={saveTask}
+        onDelete={handleDeleteTask}
+        onChange={updateDraft}
+      />
     </section>
   );
 }
