@@ -1,5 +1,3 @@
-
-
 /* ----------- Wrapper ----------- */
 .table-wrap{ overflow:auto; }
 
@@ -85,7 +83,7 @@
 
 .cell-readonly{ display:none; color:#6b7280; }
 
-/* Statut (chip) */
+/* ----------- Statut (chip) ----------- */
 .select-chip{
   width:100%; padding:8px 10px; border-radius:999px; font-weight:800;
   background:#fff; border:1px solid var(--tbl-outline);
@@ -96,11 +94,49 @@
 .select-chip.is-done    { background:rgba(23,233,224,.18);  border-color:rgba(23,233,224,.35);  color:#0b6b66; }
 .select-chip.is-info    { background:rgba(77,124,254,.16);  border-color:rgba(77,124,254,.35);  color:#1c3a96; }
 
-/* Priorité */
-.select-prio{
-  width:100%; padding:8px 10px; border-radius:999px; font-weight:800;
-  background:#fff; border:1px solid var(--tbl-outline);
+/* ----------- Priorité (lecture + édition) ----------- */
+/* Badge lecture */
+.prio-pill{
+  display:inline-block;
+  padding:4px 12px;
+  border-radius:999px;
+  font-size:.85rem;
+  font-weight:800;
+  color:#fff;
+  line-height:1;
+  white-space:nowrap;
+  min-width:92px;
+  text-align:center;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
+.prio-low   { background: linear-gradient(135deg, #3b82f6, #60a5fa); } /* bleu doux */
+.prio-medium{ background: linear-gradient(135deg, #6366f1, #8b5cf6); } /* indigo/violet */
+.prio-high  { background: linear-gradient(135deg, #7c3aed, #a78bfa); } /* violet lumineux */
+
+/* Select édition */
+.select-prio{
+  width:100%; padding:8px 12px; border-radius:999px; font-weight:800;
+  background:#fff; border:1px solid var(--tbl-outline);
+  transition: box-shadow .12s ease, border-color .12s ease, background .12s ease;
+  appearance:none;
+  background-image:
+    linear-gradient(135deg, transparent, transparent),
+    radial-gradient(#111827 35%, transparent 36%); /* petite flèche ▼ */
+  background-repeat: no-repeat, no-repeat;
+  background-position: right 12px center, right 12px center;
+  background-size: 0 0, 6px 6px;
+  padding-right: 30px;
+}
+.select-prio:focus-visible{
+  outline:none;
+  box-shadow: 0 0 0 3px rgba(124,58,237,.2);
+  border-color:#a78bfa;
+}
+/* Teinte de bordure selon valeur (ajoute prio-low/medium/high au select) */
+.select-prio.prio-low   { border-color: rgba(59,130,246,.45); }
+.select-prio.prio-medium{ border-color: rgba(99,102,241,.45); }
+.select-prio.prio-high  { border-color: rgba(124,58,237,.45); }
+.select-prio:hover      { background:#fdfdff; }
 
 /* ----------- Progress (alignement nickel) ----------- */
 .cell-progress{

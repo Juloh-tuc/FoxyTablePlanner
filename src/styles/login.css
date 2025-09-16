@@ -1,0 +1,195 @@
+/* ====== Theme local au Login ====== */
+.login-theme {
+  --primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --primary-hover: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  --secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --border: #e2e8f0;
+  --border-focus: #667eea;
+  --text: #1a202c;
+  --text-muted: #64748b;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --shadow: 0 10px 20px rgba(0,0,0,.08);
+  --shadow-lg: 0 20px 40px rgba(0,0,0,.12);
+}
+
+/* ====== Page Login uniquement ====== */
+.login-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  position: relative;
+  overflow: hidden; /* pas sur tout le site */
+  background: #0f172a; /* fond night sky, mais uniquement ici */
+}
+
+/* Petites particules — scoped */
+.login-page::before,
+.login-page::after {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+}
+.login-page::before {
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(102,126,234,.15), transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(118,75,162,.15), transparent 50%),
+    radial-gradient(circle at 40% 80%, rgba(240,147,251,.15), transparent 50%);
+  z-index: 0;
+}
+.login-page::after {
+  background-image:
+    radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,.3), transparent),
+    radial-gradient(2px 2px at 40px 70px, rgba(102,126,234,.4), transparent),
+    radial-gradient(1px 1px at 90px 40px, rgba(240,147,251,.3), transparent),
+    radial-gradient(1px 1px at 130px 80px, rgba(255,255,255,.2), transparent),
+    radial-gradient(2px 2px at 160px 30px, rgba(118,75,162,.3), transparent);
+  background-repeat: repeat;
+  background-size: 200px 100px;
+  animation: login-sparkle 20s linear infinite;
+  z-index: 0;
+}
+@keyframes login-sparkle { to { transform: translateY(-100px); } }
+
+/* ====== Hero cadré (réduit le “gros cadre lumineux”) ====== */
+.login-hero {
+  position: relative;
+  width: min(680px, 100%);
+  margin: 0 auto;
+  padding: 24px;                      /* espace autour de la card seulement */
+  border-radius: 28px;
+  z-index: 1;
+}
+.login-hero::before {
+  /* petit halo doux, plus discret que la grande “ligne” */
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(45deg, #667eea, #764ba2, #f093fb, #667eea);
+  filter: blur(20px);
+  opacity: .35;
+  z-index: -1;
+}
+
+/* ====== Contenu ====== */
+.login-wrap { width: 100%; display: flex; justify-content: center; }
+
+.login-card {
+  width: 100%;
+  max-width: 560px;
+  background: rgba(255,255,255,.95);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(14px);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-card::before {
+  content: "";
+  position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
+}
+
+.login-card h1 {
+  font-size: 1.8rem; font-weight: 800; margin: 0 0 8px;
+  background: var(--primary);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-align: center;
+}
+
+.muted { color: var(--text-muted); margin-bottom: 24px; text-align: center; line-height: 1.6; }
+
+.login-form { display: grid; gap: 20px; }
+
+.form-field { display: grid; gap: 8px; position: relative; }
+.label { font-weight: 600; color: var(--text); font-size: .95rem; margin-left: 4px; }
+
+input[type="text"] {
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  width: 100%;
+  background: var(--surface-2);
+  font-size: 1rem;
+  transition: box-shadow .2s, transform .15s, border-color .2s, background .2s;
+  box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
+}
+input[type="text"]:focus {
+  outline: none; border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(102,126,234,.12), var(--shadow);
+  transform: translateY(-1px); background: var(--surface);
+}
+input[type="text"]::placeholder { color: var(--text-muted); }
+
+.avatar-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.avatar-preview {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 12px; background: var(--surface-2);
+  border-radius: 16px; border: 2px dashed var(--border);
+  transition: background .2s, border-color .2s;
+}
+.avatar-preview:hover { border-color: var(--border-focus); background: var(--surface); }
+.avatar-preview img {
+  width: 64px; height: 64px; border-radius: 50%;
+  object-fit: cover; border: 3px solid var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.actions { display: flex; justify-content: center; gap: 12px; margin-top: 6px; }
+
+.btn {
+  border: 2px solid var(--border);
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 700; font-size: 1rem;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .2s, background .2s;
+  text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn:hover { transform: translateY(-2px); box-shadow: var(--shadow); background: #fff; }
+.btn:active { transform: translateY(0); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-muted); padding: 10px 16px; }
+.btn-ghost:hover { background: rgba(102,126,234,.08); color: var(--border-focus); transform: translateY(-1px); }
+.btn-primary { background: var(--primary); color: #fff; border: none; box-shadow: var(--shadow); min-width: 170px; }
+.btn-primary:hover { background: var(--primary-hover); box-shadow: var(--shadow-lg); }
+.btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+.help {
+  color: var(--text-muted); font-size: .9rem; line-height: 1.5;
+  margin-top: 6px; padding: 10px 14px;
+  background: rgba(102,126,234,.06);
+  border-radius: 12px; border-left: 3px solid var(--border-focus);
+}
+
+/* Soulignement animé du champ actif (scoped) */
+.form-field::after {
+  content: ""; position: absolute; left: 12px; right: 12px; bottom: -2px; height: 2px;
+  background: var(--primary); transform: scaleX(0); transition: transform .25s ease; border-radius: 1px;
+}
+.form-field:focus-within::after { transform: scaleX(1); }
+
+/* Notification succès (scoped par classe) */
+.login-success {
+  position: fixed; top: 20px; right: 20px;
+  background: linear-gradient(135deg, #10b981, #059669); color: #fff;
+  padding: 14px 18px; border-radius: 12px; box-shadow: var(--shadow);
+  transform: translateX(400px); transition: transform .25s ease; z-index: 1000;
+}
+.login-success.show { transform: translateX(0); }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .login-card { padding: 24px; }
+  .login-card h1 { font-size: 1.6rem; }
+  .actions { flex-direction: column; }
+  .btn { width: 100%; }
+}

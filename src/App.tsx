@@ -4,6 +4,7 @@ import PlannerTable from "./pages/PlannerTable";
 import PlannerAgile from "./pages/PlannerAgile";
 import PlannerWeek from "./pages/PlannerWeek";
 import NavBar from "./components/NavBar";
+import Login from "./pages/Login";
 
 export default function App(){
   return (
@@ -14,8 +15,8 @@ export default function App(){
           <Route path="/" element={<Navigate to="/table" replace />} />
           <Route path="/table" element={<PlannerTable />} />
           <Route path="/agile" element={<PlannerAgile />} />
-          <Route path="/semaine" element={<PlannerWeek />} />
-          {/* <Route path="/login" element={<Login />} /> */}
+          <Route path="/week" element={<PlannerWeek />} />
+          <Route path="/login" element={<Login />} />
         </Routes>
       </main>
     </>
