@@ -1,5 +1,5 @@
 /* ============================
-   NAVBAR - scoped styles
+   NAVBAR - styles scoped (rem)
    ============================ */
 .navbar {
   --surface: #ffffff;
@@ -10,8 +10,8 @@
   --brand-1: #6366f1;
   --brand-2: #8b5cf6;
 
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.06);
-  --shadow: 0 6px 16px rgba(0,0,0,.12);
+  --shadow-sm: 0 0.0625rem 0.125rem rgba(0,0,0,.06);
+  --shadow: 0 0.375rem 1rem rgba(0,0,0,.12);
 
   position: sticky;
   top: 0;
@@ -23,13 +23,13 @@
 
 /* Container principal */
 .navbar-inner {
-  max-width: 1200px;
+  max-width: 75rem;            /* ~1200px */
   margin: 0 auto;
-  padding: 10px 16px;
+  padding: 0.625rem 1rem;      /* 10px 16px */
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0.75rem;                 /* 12px */
 }
 
 .brand-link {
@@ -37,7 +37,7 @@
   align-items: center;
 }
 .navbar-logo {
-  height: 28px;
+  height: 3rem;                /* 48px */
   width: auto;
   display: block;
 }
@@ -46,13 +46,13 @@
 .nav-desktop {
   display: none;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;               /* 6px */
   margin: 0 auto;
 }
 
 .nav-link {
   position: relative;
-  padding: 8px 14px;
+  padding: 0.5rem 0.875rem;    /* 8px 14px */
   border-radius: 999px;
   text-decoration: none;
   color: var(--text);
@@ -64,82 +64,87 @@
 .nav-link::after {
   content: "";
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 6px;
-  height: 2px;
+  left: 1rem;                  /* 16px */
+  right: 1rem;
+  bottom: 0.375rem;            /* 6px */
+  height: 0.125rem;            /* 2px */
   background: linear-gradient(90deg, var(--brand-1), var(--brand-2));
   transform: scaleX(0);
   transform-origin: left;
   transition: transform .25s ease;
-  border-radius: 2px;
+  border-radius: 0.125rem;     /* 2px */
   opacity: .85;
 }
 
 .nav-link:hover {
   background: rgba(99,102,241,.08);
-  transform: translateY(-1px);
+  transform: translateY(-0.0625rem); /* 1px */
 }
-.nav-link:hover::after {
-  transform: scaleX(1);
-}
+.nav-link:hover::after { transform: scaleX(1); }
 
 .nav-link.active {
   color: #fff;
   background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
-  box-shadow: 0 6px 16px rgba(99,102,241,.25);
+  box-shadow: 0 0.375rem 1rem rgba(99,102,241,.25); /* 6px 16px */
 }
-.nav-link.active::after {
-  transform: scaleX(0);
-}
+.nav-link.active::after { transform: scaleX(0); }
 
 .nav-link:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(99,102,241,.25);
+  box-shadow: 0 0 0 0.1875rem rgba(99,102,241,.25); /* 3px */
 }
 
 /* --- Zone actions --- */
 .actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;                /* 12px */
 }
 
+/* Boutons génériques */
 .btn {
   border: 1px solid var(--border);
   background: #fff;
-  padding: 9px 14px;
+  padding: 0.5625rem 0.875rem; /* 9px 14px */
   border-radius: 999px;
   text-decoration: none;
   color: var(--text);
   font-weight: 600;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  transition: transform .15s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+  gap: 0.5rem;                 /* 8px */
+  transition: transform .15s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease, color .2s ease;
 }
-.btn:hover {
-  background: var(--surface-2);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow);
+/* Important : ne pas écraser les primaires au hover */
+.btn:not(.btn-primary):hover {
+  background: rgba(99,102,241,.08);
+  border-color: var(--brand-1);
+  color: var(--brand-1);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.1875rem 0.5rem rgba(99,102,241,.25); /* 3px 8px */
+}
+.btn:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.1875rem rgba(99,102,241,.3); /* 3px */
 }
 
+/* Bouton Connexion principal */
 .btn-primary {
   background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
   color: #fff;
   border: 1px solid transparent;
-  box-shadow: 0 6px 16px rgba(99,102,241,.25);
+  box-shadow: 0 0.375rem 1rem rgba(99,102,241,.25); /* 6px 16px */
 }
 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 22px rgba(99,102,241,.35);
+  background: linear-gradient(135deg, #5b5fe0, #7c5cf1);
+  color: #fff;
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.625rem 1.375rem rgba(99,102,241,.35); /* 10px 22px */
 }
-.btn-primary:active {
-  transform: translateY(0);
-}
+.btn-primary:active { transform: translateY(0); }
 .btn-primary:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(99,102,241,.35);
+  box-shadow: 0 0 0 0.1875rem rgba(99,102,241,.35); /* 3px */
 }
 
 /* Avatar */
@@ -150,15 +155,15 @@
   cursor: pointer;
 }
 .avatar-img {
-  width: 32px;
-  height: 32px;
+  width: 2rem;                 /* 32px */
+  height: 2rem;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #eef2ff;
+  border: 0.125rem solid #eef2ff; /* 2px */
   transition: transform .15s ease, box-shadow .2s ease;
 }
 .avatar-btn:hover .avatar-img {
-  transform: translateY(-1px);
+  transform: translateY(-0.0625rem);
   box-shadow: var(--shadow-sm);
 }
 
@@ -166,16 +171,16 @@
 .burger {
   display: inline-flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 0.1875rem;              /* 3px */
   border: 1px solid var(--border);
   background: #fff;
-  border-radius: 10px;
-  padding: 6px;
+  border-radius: 0.625rem;     /* 10px */
+  padding: 0.375rem;           /* 6px */
   cursor: pointer;
 }
 .burger span {
-  width: 18px;
-  height: 2px;
+  width: 1.125rem;             /* 18px */
+  height: 0.125rem;            /* 2px */
   background: var(--text);
   display: block;
 }
@@ -186,19 +191,15 @@
   border-top: 1px solid var(--border);
   background: #fff;
 }
-.menu-mobile.open {
-  display: grid;
-}
+.menu-mobile.open { display: grid; }
 .mobile-link {
-  padding: 14px 16px;
+  padding: 0.875rem 1rem;      /* 14px 16px */
   text-decoration: none;
   color: var(--text);
   border-bottom: 1px solid var(--border);
   font-weight: 600;
 }
-.mobile-link:hover {
-  background: rgba(99,102,241,.08);
-}
+.mobile-link:hover { background: rgba(99,102,241,.08); }
 .menu-mobile hr {
   border: 0;
   border-top: 1px solid var(--border);
@@ -206,7 +207,7 @@
 }
 
 /* Responsive */
-@media (min-width: 768px) {
+@media (min-width: 48rem) {    /* 768px */
   .nav-desktop { display: inline-flex; }
   .burger, .menu-mobile { display: none !important; }
 }

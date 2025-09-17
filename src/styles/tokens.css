@@ -1,47 +1,88 @@
+/* ===========================
+   Design Tokens (light/dark)
+   - Conserve tous les anciens noms
+   - Ajoute spacing/typography en rem
+   - Nettoie la redéfinition doublon de :root
+   =========================== */
+
+/* ---------- Light (par défaut) ---------- */
 :root {
-  /* Fond / texte / UI */
-  --bg:#FAFAFA;
+  /* Neutres & surfaces */
+  --bg: #FAFAFA;
   --text: #1F2328;
   --border: #CFCFCF;
   --card: #ffffff;
-  --shadow: 0 2px 8px rgba(0,0,0,.06);
-  --radius: 16px;
+
+  /* Surfaces utiles (zébrage/thead) */
+  --surface-subtle: #F9FAFB;
+  --surface-muted:  #FAFAFB;
+
+  /* Table (zebra + header) */
+  --table-row-1: #FFFFFF;
+  --table-row-2: #F9FAFB;
+  --table-header: #F3F4F6;
+
+  /* Ombres (en rem) */
+  --shadow:     0 0.125rem 0.5rem rgba(0,0,0,.06);   /* 0 2px 8px */
+  --shadow-sm:  0 0.0625rem 0.25rem rgba(0,0,0,.05); /* 0 1px 4px */
+  --shadow-lg:  0 0.75rem 1.5rem rgba(0,0,0,.12);    /* 0 12px 24px */
+
+  /* Rayons (en rem) */
+  --radius: 1rem;        /* 16px */
+  --radius-sm: 0.5rem;   /* 8px */
+  --radius-lg: 1.25rem;  /* 20px */
 
   /* Palette statuts */
-  --st-priority: #A64AC9;   /* Prioritaire (badge) */
-  --st-progress: #FCCD04;   /* En cours */
-  --st-wait: #FFB48F;       /* En attente */
-  --st-blocked: #E24D4D;    /* Bloqué */
-  --st-done: #17E9E0;       /* Terminé */
-  --st-info: #4D7CFE;       /* Info */
+  --st-priority: #A64AC9;
+  --st-progress: #FCCD04;
+  --st-wait:     #FFB48F;
+  --st-blocked:  #E24D4D;
+  --st-done:     #17E9E0;
+  --st-info:     #4D7CFE;
 
-  /* UI accent (boutons) */
+  /* Accent UI */
   --accent: #8b5cf6;
+
+  /* Échelle d’espacement (basée sur 4px) */
+  --space-0: 0;
+  --space-1: 0.25rem;    /* 4px  */
+  --space-2: 0.5rem;     /* 8px  */
+  --space-3: 0.75rem;    /* 12px */
+  --space-4: 1rem;       /* 16px */
+  --space-5: 1.25rem;    /* 20px */
+  --space-6: 1.5rem;     /* 24px */
+  --space-8: 2rem;       /* 32px */
+  --space-10: 2.5rem;    /* 40px */
+  --space-12: 3rem;      /* 48px */
+
+  /* Typo scale */
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.875rem;   /* 14px */
+  --text:    1rem;       /* 16px (base) */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.25rem;    /* 20px */
+  --text-2xl:1.5rem;     /* 24px */
 }
-:root[data-theme="dark"]{
+
+/* ---------- Dark ---------- */
+:root[data-theme="dark"] {
   /* Neutres */
   --bg:#0f1115;
   --text:#e5e7eb;
   --card:#171a21;
   --border:#2a2f3a;
 
-  /* Surfaces utiles (zébrage/thead) */
+  /* Surfaces utiles */
   --surface-subtle:#141820;
   --surface-muted:#1a1f29;
 
-  /* Table (zebra + header) */
+  /* Table */
   --table-row-1:#161a23;
   --table-row-2:#141820;
   --table-header:#1d2430;
 
-  /* Ombres un peu plus denses en dark */
-  --shadow:0 8px 20px rgba(0,0,0,.45);
-  --shadow-sm:0 4px 12px rgba(0,0,0,.35);
-}
-:root{
-  --surface-subtle:#F9FAFB;
-  --surface-muted:#FAFAFB;
-  --table-row-1:#FFFFFF;
-  --table-row-2:#F9FAFB;
-  --table-header:#F3F4F6;
+  /* Ombres plus denses */
+  --shadow:    0 0.5rem 1.25rem rgba(0,0,0,.45);  /* 0 8px 20px */
+  --shadow-sm: 0 0.25rem 0.75rem rgba(0,0,0,.35); /* 0 4px 12px */
+  --shadow-lg: 0 0.75rem 1.5rem rgba(0,0,0,.6);   /* 0 12px 24px */
 }

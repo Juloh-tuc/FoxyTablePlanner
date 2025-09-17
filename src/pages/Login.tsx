@@ -1,32 +1,38 @@
 // src/pages/Login.tsx
 import React, { useEffect, useRef, useState } from "react";
-import "../styles/login.css";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import "../styles/planner-common.css";
+import "../styles/login.css";
 
-type Profile = {
+
+type LegacyProfile = {
   username: string;
   avatar?: string;
 };
 
-const LS_KEY = "ft_profile";
+const LEGACY_KEY = "ft_profile"; // pour préremplir si profil déjà stocké avant
 const MAX_SIDE = 512;
 
-function Login() {
+export default function Login() {
+  const nav = useNavigate();
+  const { login } = useAuth();
+
   const [username, setUsername] = useState<string>("");
   const [avatar, setAvatar] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState<boolean>(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  // Pré-remplissage : compat avec l'ancien stockage "ft_profile"
   useEffect(() => {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) {
-      try {
-        const parsed: Profile = JSON.parse(raw);
-        setUsername(parsed.username || "");
-        setAvatar(parsed.avatar);
-      } catch {
-        /* ignore JSON invalide */
-      }
+    try {
+      const raw = localStorage.getItem(LEGACY_KEY);
+      if (!raw) return;
+      const parsed: LegacyProfile = JSON.parse(raw);
+      if (parsed?.username) setUsername(parsed.username);
+      if (parsed?.avatar) setAvatar(parsed.avatar);
+    } catch {
+      /* ignore JSON invalide */
     }
   }, []);
 
@@ -57,12 +63,25 @@ function Login() {
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!username.trim()) return;
+
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    const payload: Profile = { username: username.trim(), avatar };
-    localStorage.setItem(LS_KEY, JSON.stringify(payload));
+
+    // petite latence UI (optionnelle)
+    await new Promise((r) => setTimeout(r, 400));
+
+    // 1) Login via AuthContext → enregistre dans localStorage "ft_user"
+    login({ name: username.trim(), avatarUrl: avatar });
+
+    // 2) Compat : on met aussi à jour l'ancien key pour ne rien casser ailleurs
+    const legacyPayload: LegacyProfile = { username: username.trim(), avatar };
+    localStorage.setItem(LEGACY_KEY, JSON.stringify(legacyPayload));
+
     setSaving(false);
     showSuccessNotification();
+
+    // 3) Redirection vers le tableau
+    nav("/table", { replace: true });
   };
 
   return (
@@ -129,7 +148,7 @@ function Login() {
               </div>
 
               <div className="actions">
-                <button className="btn btn-primary" disabled={saving} type="submit">
+                 <button className="btn login-primary" disabled={saving} type="submit">
                   {saving ? "⏳ Création en cours..." : "🚀 Créer mon profil"}
                 </button>
               </div>
@@ -173,5 +192,3 @@ async function downscaleImage(dataURL: string, maxSide: number): Promise<string>
   ctx.drawImage(img, 0, 0, w, h);
   return canvas.toDataURL("image/webp", 0.9);
 }
-
-export default Login;

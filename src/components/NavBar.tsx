@@ -1,24 +1,43 @@
 // src/components/NavBar.tsx
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import "./navbar.css";
-import logoFoxy from "../assets/Logo Foxy 2025@2x.png"; // ou BASE_URL si ton logo est dans /public
+import logoFoxy from "../assets/Logo Foxy 2025@2x.png";
 
-type StoredProfile = { avatar?: string; username?: string };
+type LegacyProfile = { avatar?: string; username?: string };
 
 export default function NavBar() {
+  const nav = useNavigate();
+  const { user, logout } = useAuth(); // <- source officielle (ft_user)
+  const [legacy, setLegacy] = useState<LegacyProfile | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [profile, setProfile] = useState<StoredProfile | null>(null);
 
+  // Fallback: lit l'ancien stockage "ft_profile" pour affichage si pas encore loggé via AuthContext
   useEffect(() => {
-    const raw = localStorage.getItem("ft_profile");
-    if (raw) setProfile(JSON.parse(raw));
-  }, []);
+    try {
+      const raw = localStorage.getItem("ft_profile");
+      setLegacy(raw ? JSON.parse(raw) : null);
+    } catch {
+      setLegacy(null);
+    }
+  }, [user]); // si user change, on re-check juste au cas où
 
   const closeMenu = () => setIsOpen(false);
+  const toggleMenu = () => setIsOpen((v) => !v);
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     "nav-link" + (isActive ? " active" : "");
+
+  // Données d’affichage: priorité au contexte, sinon legacy
+  const displayName = user?.name || legacy?.username || "";
+  const displayAvatar = user?.avatarUrl || legacy?.avatar;
+
+  const handleLogout = () => {
+    closeMenu();
+    logout();
+    nav("/login", { replace: true });
+  };
 
   return (
     <nav className="navbar">
@@ -32,43 +51,87 @@ export default function NavBar() {
 
         {/* Center: desktop nav */}
         <div className="nav-desktop" role="navigation" aria-label="Navigation principale">
-          <NavLink to="/table" className={linkClass} onClick={closeMenu}>Table</NavLink>
-          <NavLink to="/agile" className={linkClass} onClick={closeMenu}>Agile</NavLink>
-          <NavLink to="/week"  className={linkClass} onClick={closeMenu}>Semaine</NavLink>
+          <NavLink to="/table" className={linkClass} onClick={closeMenu}>
+            Table
+          </NavLink>
+          <NavLink to="/agile" className={linkClass} onClick={closeMenu}>
+            Agile
+          </NavLink>
+          <NavLink to="/week" className={linkClass} onClick={closeMenu}>
+            Semaine
+          </NavLink>
         </div>
 
         {/* Right: actions + burger */}
         <div className="actions">
-          {profile?.avatar ? (
-            <NavLink to="/login" className="avatar-btn" onClick={closeMenu} aria-label="Mon profil">
-              <img src={profile.avatar} alt={profile.username || "Mon avatar"} className="avatar-img" />
+          {/* Profil (avatar ou bouton) */}
+          {displayAvatar ? (
+            <NavLink
+              to="/login"
+              className="avatar-btn"
+              onClick={closeMenu}
+              aria-label="Mon profil"
+              title={displayName || "Mon profil"}
+            >
+              <img
+                src={displayAvatar}
+                alt={displayName || "Mon avatar"}
+                className="avatar-img"
+              />
             </NavLink>
           ) : (
-            <NavLink to="/login" className="btn btn-primary" onClick={closeMenu}>Connexion</NavLink>
+            <NavLink to="/login" className="btn btn-primary" onClick={closeMenu}>
+              Connexion
+            </NavLink>
           )}
 
+          {/* Bouton logout si connecté via AuthContext */}
+          {user && (
+            <button className="btn btn-ghost ml-8" onClick={handleLogout}>
+              Déconnexion
+            </button>
+          )}
+
+          {/* Burger */}
           <button
             className="burger"
             aria-label="Ouvrir le menu"
             aria-expanded={isOpen}
             aria-controls="menu-mobile"
-            onClick={() => setIsOpen(v => !v)}
+            onClick={toggleMenu}
           >
-            <span /><span /><span />
+            <span />
+            <span />
+            <span />
           </button>
         </div>
       </div>
 
       {/* Mobile menu */}
       <div id="menu-mobile" className={`menu-mobile ${isOpen ? "open" : ""}`}>
-        <NavLink to="/table" className="mobile-link" onClick={closeMenu}>Table</NavLink>
-        <NavLink to="/agile" className="mobile-link" onClick={closeMenu}>Agile</NavLink>
-        <NavLink to="/week"  className="mobile-link" onClick={closeMenu}>Semaine</NavLink>
+        <NavLink to="/table" className="mobile-link" onClick={closeMenu}>
+          Table
+        </NavLink>
+        <NavLink to="/agile" className="mobile-link" onClick={closeMenu}>
+          Agile
+        </NavLink>
+        <NavLink to="/week" className="mobile-link" onClick={closeMenu}>
+          Semaine
+        </NavLink>
         <hr />
-        {profile?.avatar ? (
-          <NavLink to="/login" className="mobile-link" onClick={closeMenu}>Mon profil</NavLink>
+        {displayAvatar ? (
+          <NavLink to="/login" className="mobile-link" onClick={closeMenu}>
+            Mon profil
+          </NavLink>
         ) : (
-          <NavLink to="/login" className="mobile-link" onClick={closeMenu}>Connexion</NavLink>
+          <NavLink to="/login" className="mobile-link" onClick={closeMenu}>
+            Connexion
+          </NavLink>
+        )}
+        {user && (
+          <button className="mobile-link btn-ghost mt-8" onClick={handleLogout}>
+            Déconnexion
+          </button>
         )}
       </div>
     </nav>

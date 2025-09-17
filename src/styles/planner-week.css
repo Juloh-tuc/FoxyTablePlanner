@@ -1,4 +1,4 @@
-/* ===========================
+/* =========================== 
    Planner Week — Fit Week (no horizontal scroll)
    Affiche TOUJOURS les 7 jours dans la largeur de l’écran.
    =========================== */
@@ -6,12 +6,12 @@
 /* ---------- Variables ---------- */
 :root {
   /* Dimensions fluides */
-  --wrap-pad: clamp(12px, 3vw, 32px);
-  --row-h: clamp(40px, 6.2vw, 72px);            /* hauteur de ligne adaptative */
-  --sidebar-w: clamp(120px, 16vw, 220px);       /* colonne gauche proportionnelle */
+  --wrap-pad: clamp(0.75rem, 3vw, 2rem);                /* 12px → 32px */
+  --row-h: clamp(2.5rem, 6.2vw, 4.5rem);                /* 40px → 72px */
+  --sidebar-w: clamp(7.5rem, 16vw, 13.75rem);           /* 120px → 220px */
 
   /* Rayons */
-  --r-sm: 8px; --r: 12px; --r-lg: 16px;
+  --r-sm: 0.5rem; --r: 0.75rem; --r-lg: 1rem;           /* 8 / 12 / 16 */
 
   /* Couleurs (clair) */
   --bg: #f7f7fb;
@@ -49,10 +49,10 @@
   --st-info-tx: #1e3a8a;
 
   /* Ombres & focus */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.07);
-  --shadow:    0 4px 12px rgba(0,0,0,.10);
-  --shadow-lg: 0 12px 24px rgba(0,0,0,.12);
-  --focus: 0 0 0 3px rgba(124,58,237,.18);
+  --shadow-sm: 0 0.0625rem 0.125rem rgba(0,0,0,.07);    /* 1px 2px */
+  --shadow:    0 0.25rem 0.75rem rgba(0,0,0,.10);       /* 4px 12px */
+  --shadow-lg: 0 0.75rem 1.5rem rgba(0,0,0,.12);        /* 12px 24px */
+  --focus: 0 0 0 0.1875rem rgba(124,58,237,.18);        /* 3px */
 }
 
 /* ---------- Dark ---------- */
@@ -61,9 +61,9 @@
   --border:#2c3549; --border-strong:#3a4763;
   --text:#e6edf7; --text-muted:#a5b4cf; --text-light:#8fa0be;
 
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.45);
-  --shadow:    0 4px 12px rgba(0,0,0,.55);
-  --shadow-lg: 0 12px 24px rgba(0,0,0,.6);
+  --shadow-sm: 0 0.0625rem 0.125rem rgba(0,0,0,.45);
+  --shadow:    0 0.25rem 0.75rem rgba(0,0,0,.55);
+  --shadow-lg: 0 0.75rem 1.5rem rgba(0,0,0,.6);
 }
 
 /* ---------- Page ---------- */
@@ -87,17 +87,17 @@
 
 .week-controls{
   /* largeur égale au tableau */
-  margin: 24px auto 0 auto;
+  margin: 1.5rem auto 0 auto;                    /* 24px */
   padding-inline: var(--wrap-pad);
   max-width: 100vw;
-  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  display:flex; align-items:center; justify-content:space-between; gap:1rem; /* 16px */
 
   background: var(--card);
   border: 1px solid var(--border-strong);
   border-bottom: none;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   box-shadow: var(--shadow);
-  padding-block: clamp(10px, 1.4vw, 16px);
+  padding-block: clamp(0.625rem, 1.4vw, 1rem);   /* 10px → 16px */
 }
 .week-title{
   font-size: clamp(1rem, 2.2vw, 1.3rem);
@@ -106,7 +106,7 @@
 
 /* conteneur tableau */
 .bleed-xl{
-  margin: 0 auto 40px auto;
+  margin: 0 auto 2.5rem auto;                    /* 40px */
   padding-inline: var(--wrap-pad);
   max-width: 100vw;
 }
@@ -129,8 +129,8 @@
 .grid7{
   display:grid;
   grid-template-columns:
-    minmax(100px, var(--sidebar-w))
-    repeat(7, minmax(0, 1fr));        /* 7 jours visibles, sans scroll */
+    minmax(6.25rem, var(--sidebar-w))            /* 100px */
+    repeat(7, minmax(0, 1fr));                   /* 7 jours visibles, sans scroll */
   width: 100%;
   background: var(--card);
 }
@@ -142,7 +142,7 @@
   position: sticky; top: 0; z-index:10;
 }
 .day-head{
-  padding: clamp(10px, 1.4vw, 18px) 10px;
+  padding: clamp(0.625rem, 1.4vw, 1.125rem) 0.625rem; /* 10px → 18px | 10px */
   text-align:center;
   border-left:1px solid var(--border);
   background: var(--card-2);
@@ -156,7 +156,7 @@
   color: var(--text-muted); text-transform:uppercase; letter-spacing:.06em;
 }
 .day-head .dow{
-  font-weight:800; font-size: clamp(.8rem, 1.7vw, .95rem); margin-bottom:2px;
+  font-weight:800; font-size: clamp(.8rem, 1.7vw, .95rem); margin-bottom:0.125rem; /* 2px */
 }
 .day-head .dom{
   font-weight:900; font-size: clamp(1rem, 2.3vw, 1.35rem); color: var(--text-muted);
@@ -170,7 +170,8 @@
 .day-head.is-today .dow, .day-head.is-today .dom{ color:#fff; }
 .day-head.is-today::after{
   content:""; position:absolute; bottom:0; left:0; right:0;
-  height:4px; background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  height:0.25rem; /* 4px */
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
 }
 
 /* ---------- Corps ---------- */
@@ -182,7 +183,7 @@
 .col-left{
   background: var(--card);
   border-bottom:1px solid var(--border);
-  display:flex; align-items:center; padding: 0 clamp(10px, 1.6vw, 18px);
+  display:flex; align-items:center; padding: 0 clamp(0.625rem, 1.6vw, 1.125rem); /* 10→18px */
   font-size: clamp(.82rem, 1.6vw, .95rem);
   color: var(--text-muted); font-weight:600;
 }
@@ -209,11 +210,11 @@
 .add-btn{
   font-size: clamp(.8rem, 1.6vw, .95rem);
   font-weight:700;
-  padding: clamp(6px, 1vw, 10px) clamp(10px, 1.6vw, 18px);
+  padding: clamp(0.375rem, 1vw, 0.625rem) clamp(0.625rem, 1.6vw, 1.125rem); /* 6→10 / 10→18 */
   border-radius: var(--r);
   border:2px dashed var(--border);
   background:#fff; color: var(--text-muted);
-  display:flex; align-items:center; gap:8px;
+  display:flex; align-items:center; gap:0.5rem; /* 8px */
   transition: all .12s ease;
 }
 .add-btn::before{ content:"+"; font-weight:800; font-size:1.1em; }
@@ -221,7 +222,7 @@
   border-color: var(--primary);
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 8%, #fff);
-  transform: translateY(-1px);
+  transform: translateY(-0.0625rem); /* 1px */
   box-shadow: var(--shadow-sm);
 }
 .add-btn:focus-visible{ outline:none; box-shadow: var(--focus); }
@@ -229,22 +230,22 @@
 /* ---------- Barres de tâches ---------- */
 .task-bar{
   z-index:5; align-self:center;
-  height: clamp(34px, 4.5vw, 48px);
-  margin: clamp(3px, .6vw, 6px);
+  height: clamp(2.125rem, 4.5vw, 3rem);           /* 34px → 48px */
+  margin: clamp(0.1875rem, .6vw, 0.375rem);       /* 3px → 6px */
   border-radius: var(--r);
   border:1px solid var(--border);
   background: var(--card);
   box-shadow: var(--shadow);
-  display:flex; align-items:center; gap: clamp(6px, 1vw, 12px);
-  padding: clamp(6px, 1vw, 10px) clamp(10px, 1.6vw, 16px);
+  display:flex; align-items:center; gap: clamp(0.375rem, 1vw, 0.75rem); /* 6→12 */
+  padding: clamp(0.375rem, 1vw, 0.625rem) clamp(0.625rem, 1.6vw, 1rem); /* 6→10 / 10→16 */
   cursor:pointer; transition: all .12s ease; overflow:hidden; position:relative;
 }
 .task-bar::before{
   content:""; position:absolute; left:0; top:0; bottom:0;
-  width: clamp(3px, .6vw, 5px);
+  width: clamp(0.1875rem, .6vw, 0.3125rem);       /* 3px → 5px */
   background: var(--status-color, var(--border));
 }
-.task-bar:hover{ transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.task-bar:hover{ transform: translateY(-0.125rem); box-shadow: var(--shadow-lg); } /* 2px */
 .task-bar:focus-visible{ outline:none; box-shadow: var(--focus); }
 
 .bar-title{
@@ -252,7 +253,7 @@
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   flex:1; min-width:0;
 }
-.bar-meta{ display:flex; gap: clamp(6px, 1vw, 8px); align-items:center; flex-shrink:0; }
+.bar-meta{ display:flex; gap: clamp(0.375rem, 1vw, 0.5rem); align-items:center; flex-shrink:0; } /* 6→8 */
 
 /* Statuts */
 .task-bar.is-progress{ --status-color: var(--st-progress-tx); background: var(--st-progress-bg); border-color: var(--st-progress-br); }
@@ -263,21 +264,23 @@
 
 /* Badges / chips */
 .badge-prio{
-  display:inline-flex; align-items:center; gap:6px;
-  padding:2px 8px; border-radius:999px; font-size: clamp(.7rem, 1.4vw, .8rem);
+  display:inline-flex; align-items:center; gap:0.375rem;   /* 6px */
+  padding:0.125rem 0.5rem;                                  /* 2px 8px */
+  border-radius:999px; font-size: clamp(.7rem, 1.4vw, .8rem);
   font-weight:800; background: rgba(107,114,128,.08);
   color: var(--text-muted); border:1px solid rgba(107,114,128,.18);
 }
 .badge-prio[data-level="Faible"]{ background: rgba(34,197,94,.12); color:#15803d; border-color: rgba(34,197,94,.28); }
 .badge-prio[data-level="Élevé"]{  background: rgba(239,68,68,.12); color:#b91c1c; border-color: rgba(239,68,68,.28); }
-.badge-prio .dot{ width:6px; height:6px; border-radius:999px; background: currentColor; }
+.badge-prio .dot{ width:0.375rem; height:0.375rem; border-radius:999px; background: currentColor; } /* 6px */
 
 .status-chip{
-  display:inline-flex; align-items:center; gap:6px;
-  padding:3px 8px; border-radius:999px; font-size: clamp(.7rem, 1.4vw, .8rem);
+  display:inline-flex; align-items:center; gap:0.375rem;
+  padding:0.1875rem 0.5rem;                                  /* 3px 8px */
+  border-radius:999px; font-size: clamp(.7rem, 1.4vw, .8rem);
   font-weight:800; opacity:.95;
 }
-.status-chip .dot{ width:6px; height:6px; border-radius:999px; background: currentColor; }
+.status-chip .dot{ width:0.375rem; height:0.375rem; border-radius:999px; background: currentColor; }
 .status-chip.is-progress{ color: var(--st-progress-tx); }
 .status-chip.is-done{     color: var(--st-done-tx); }
 .status-chip.is-blocked{  color: var(--st-blocked-tx); }
@@ -287,44 +290,45 @@
 /* Ligne “Aujourd’hui” visible mais fine si l’écran est étroit */
 .today-line{
   z-index:6;
-  width: clamp(2px, .6vw, 6px); border-radius:3px;
+  width: clamp(0.125rem, .6vw, 0.375rem);        /* 2px → 6px */
+  border-radius:0.1875rem;                        /* 3px */
   background: linear-gradient(180deg, var(--primary) 0%, var(--primary-2) 100%);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--primary) 60%, transparent);
+  box-shadow: 0 0 0.625rem color-mix(in srgb, var(--primary) 60%, transparent); /* 10px */
 }
 
 /* ---------- Modale ---------- */
 .modal-backdrop{
-  position:fixed; inset:0; background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
-  display:flex; align-items:center; justify-content:center; z-index:50; padding:16px;
+  position:fixed; inset:0; background: rgba(0,0,0,.45); backdrop-filter: blur(0.25rem); /* 4px */
+  display:flex; align-items:center; justify-content:center; z-index:50; padding:1rem;   /* 16px */
 }
 .modal{
-  width:min(680px, 100%); max-height:90vh; overflow:auto;
+  width:min(42.5rem, 100%); max-height:90vh; overflow:auto;  /* 680px */
   background: var(--card); border-radius: var(--r-lg);
-  border:1px solid var(--border); box-shadow: var(--shadow-lg); padding:24px;
+  border:1px solid var(--border); box-shadow: var(--shadow-lg); padding:1.5rem; /* 24px */
 }
-.modal h2{ margin:0 0 18px; font-size:1.2rem; font-weight:900; }
+.modal h2{ margin:0 0 1.125rem; font-size:1.2rem; font-weight:900; } /* 18px */
 .form{
-  display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(240px,1fr));
-  margin-bottom:22px;
+  display:grid; gap:1rem; grid-template-columns: repeat(auto-fit, minmax(15rem,1fr)); /* 240px */
+  margin-bottom:1.375rem; /* 22px */
 }
-.form label{ display:flex; flex-direction:column; gap:6px; font-weight:800; font-size:.95rem; }
+.form label{ display:flex; flex-direction:column; gap:0.375rem; font-weight:800; font-size:.95rem; }
 .form input, .form select{
-  padding:12px 14px; border:1.5px solid var(--border); border-radius: var(--r);
+  padding:0.75rem 0.875rem; border:1.5px solid var(--border); border-radius: var(--r);
   background: var(--card-2); color: var(--text);
   transition: border .12s ease, box-shadow .12s ease, background .12s ease;
 }
 .form input:focus, .form select:focus{ outline:none; border-color: var(--primary); box-shadow: var(--focus); background:#fff; }
 .form input::placeholder{ color: var(--text-light); }
-.modal-actions{ display:flex; align-items:center; gap:12px; padding-top:18px; border-top:1px solid var(--border); }
+.modal-actions{ display:flex; align-items:center; gap:0.75rem; padding-top:1.125rem; border-top:1px solid var(--border); }
 
 /* ---------- Boutons ---------- */
 .btn{
-  display:inline-flex; align-items:center; justify-content:center; gap:6px;
-  padding:10px 18px; border:1px solid var(--border); border-radius: var(--r);
+  display:inline-flex; align-items:center; justify-content:center; gap:0.375rem; /* 6px */
+  padding:0.625rem 1.125rem; border:1px solid var(--border); border-radius: var(--r);
   background: var(--card); color: var(--text); font-weight:800; font-size:.9rem;
   cursor:pointer; transition: all .12s ease; white-space:nowrap;
 }
-.btn:hover{ background: var(--card-2); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn:hover{ background: var(--card-2); transform: translateY(-0.0625rem); box-shadow: var(--shadow-sm); }
 .btn:focus-visible{ outline:none; box-shadow: var(--focus); }
 .btn.primary{ background: var(--primary); color:#fff; border-color: var(--primary); }
 .btn.primary:hover{ background: var(--primary-2); border-color: var(--primary-2); }
@@ -332,19 +336,19 @@
 .btn.danger:hover{ background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.42); }
 
 /* ---------- Responsif (garde toujours 7 colonnes visibles) ---------- */
-@media (max-width: 1024px){
+@media (max-width: 64rem){ /* 1024px */
   :root{
-    --sidebar-w: clamp(100px, 18vw, 180px);
-    --row-h: clamp(38px, 7vw, 64px);
+    --sidebar-w: clamp(6.25rem, 18vw, 11.25rem);  /* 100px → 180px */
+    --row-h: clamp(2.375rem, 7vw, 4rem);          /* 38px → 64px */
   }
-  .bar-meta{ display:none; }           /* épure quand l’espace se resserre */
+  .bar-meta{ display:none; }                      /* épure quand l’espace se resserre */
 }
-@media (max-width: 720px){
+@media (max-width: 45rem){ /* 720px */
   :root{
-    --sidebar-w: clamp(90px, 20vw, 150px);
-    --row-h: clamp(34px, 8vw, 56px);
+    --sidebar-w: clamp(5.625rem, 20vw, 9.375rem); /* 90px → 150px */
+    --row-h: clamp(2.125rem, 8vw, 3.5rem);        /* 34px → 56px */
   }
-  .day-head .dow{ display:none; }      /* garde la date, retire le label jour */
+  .day-head .dow{ display:none; }                 /* garde la date, retire le label jour */
   .week-title{ font-size: clamp(.95rem, 4vw, 1.1rem); }
 }
 
