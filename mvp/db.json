@@ -1,0 +1,110 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Simon",
+      "role": "Chef de projet",
+      "team": "Management",
+      "email": "simon.barreau@foxy-table.com",
+      "avatar": "/avatars/simon_foxy.png"
+    },
+    {
+      "id": 2,
+      "name": "Titouan",
+      "role": "Chef de projet",
+      "team": "Management",
+      "email": "titouan.dupont@foxy-table.com",
+      "avatar": "/avatars/titouan_foxy.png"
+    },
+    {
+      "id": 3,
+      "name": "Léo",
+      "role": "Chef des dev",
+      "team": "Tech",
+      "email": "leo.tech@foxy-table.com",
+      "avatar": "/avatars/leo_foxy.png"
+    },
+    {
+      "id": 4,
+      "name": "Myriam",
+      "role": "Responsable commerciale",
+      "team": "Commerciale",
+      "email": "myriam.foxy@foxy-table.com",
+      "avatar": "/avatars/myriam_foxy.png"
+    },
+    {
+      "id": 5,
+      "name": "Anaïs",
+      "role": "Prospection téléphonique",
+      "team": "Commerciale",
+      "email": "anais.foxy@foxy-table.com",
+      "avatar": "/avatars/anais.png"
+    },
+    {
+      "id": 6,
+      "name": "Julie",
+      "role": "Dev front end",
+      "team": "Tech",
+      "email": "julie.lohier@foxy-table.com",
+      "avatar": "/avatars/foxy_julie.png"
+    },
+    {
+      "id": 7,
+      "name": "Mohamed",
+      "role": "Téléconseiller",
+      "team": "Commerciale",
+      "email": "mohamed.foxy@foxy-table.com",
+      "avatar": "/avatars/mohamed_foxy.png"
+    }
+  ],
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Réunion de lancement projet",
+      "status": "En cours",
+      "priority": "Élevé",
+      "assignedTo": 1,
+      "dueDate": "2025-09-20"
+    },
+    {
+      "id": 2,
+      "title": "Rédaction cahier des charges",
+      "status": "Pas commencé",
+      "priority": "Moyen",
+      "assignedTo": 2,
+      "dueDate": "2025-09-22"
+    },
+    {
+      "id": 3,
+      "title": "Mise en place CI/CD",
+      "status": "Bloqué",
+      "priority": "Élevé",
+      "assignedTo": 3,
+      "dueDate": "2025-09-25"
+    },
+    {
+      "id": 4,
+      "title": "Prospection nouveaux clients",
+      "status": "En attente",
+      "priority": "Moyen",
+      "assignedTo": 5,
+      "dueDate": "2025-09-28"
+    },
+    {
+      "id": 5,
+      "title": "Développement interface login",
+      "status": "En cours",
+      "priority": "Élevé",
+      "assignedTo": 6,
+      "dueDate": "2025-09-30"
+    },
+    {
+      "id": 6,
+      "title": "Suivi client – appel de satisfaction",
+      "status": "Terminé",
+      "priority": "Faible",
+      "assignedTo": 7,
+      "dueDate": "2025-09-15"
+    }
+  ]
+}

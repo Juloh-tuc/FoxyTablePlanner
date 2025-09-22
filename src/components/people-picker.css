@@ -1,0 +1,141 @@
+/* ===========================
+   PeoplePicker — styles complets
+   =========================== */
+
+.pp-wrap{ position:relative; }
+
+/* Sélection affichée dans la cellule */
+.pp-selected{
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-height:36px;
+}
+.pp-pill{
+  display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px;
+  background:#f3f4f6; border:1px solid rgba(0,0,0,.06); font-size:13px; font-weight:600;
+  color:#111827;
+}
+.pp-pill.muted{ color:#6b7280; }
+
+.pp-edit{
+  margin-left:4px; padding:6px 10px; border-radius:999px; cursor:pointer;
+  border:1px dashed rgba(0,0,0,.18); background:#fff; font-weight:700;
+  transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease;
+}
+.pp-edit:hover{ transform: translateY(-1px); box-shadow: 0 1px 2px rgba(0,0,0,.06); border-color:#c7d2fe; }
+.pp-edit:focus-visible{ outline:3px solid #c7d2fe; outline-offset:2px; }
+
+/* Panneau */
+.pp-panel{
+  position:absolute; left:14px; top:100%; margin-top:6px; z-index: 40;
+  width:min(480px, 70vw);
+  background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:12px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.12);
+  padding:10px;
+}
+.pp-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.pp-head strong{ font-weight:800; color:#111827; }
+.pp-close{
+  background:#f3f4f6; border:1px solid rgba(0,0,0,.08); border-radius:8px; padding:6px 10px; cursor:pointer;
+}
+.pp-close:hover{ background:#eef1f5; }
+
+/* Barre outils (recherche) */
+.pp-tools{ display:flex; gap:8px; margin:8px 0; }
+.pp-input{
+  flex:1; padding:8px 10px; border:1px solid rgba(0,0,0,.1); border-radius:8px; background:#fff;
+  font: inherit;
+}
+.pp-input.search{ padding-left:12px; }
+.pp-input:focus-visible{ outline:3px solid #c7d2fe; outline-offset:2px; }
+
+.pp-btn{
+  padding:8px 12px; border-radius:8px; border:1px solid rgba(0,0,0,.1); background:#fff; cursor:pointer;
+  font-weight:700;
+}
+.pp-btn:hover{ background:#fafafa; }
+
+/* Liste */
+.pp-list{
+  max-height:260px; overflow:auto; border:1px solid rgba(0,0,0,.06); border-radius:8px; padding:6px;
+  background:#fff;
+}
+.pp-empty{
+  padding:10px; color:#6b7280; text-align:center; font-size:13px;
+}
+.pp-row{
+  display:grid; grid-template-columns:auto 1fr auto; align-items:center;
+  gap:10px; padding:6px 8px; border-radius:6px;
+}
+.pp-row:hover{ background:#fafafa; }
+
+.pp-name{
+  display:flex; align-items:center; gap:8px;
+  font-weight:600; color:#111827;
+}
+.pp-email{
+  font-weight:500; color:#6b7280;
+}
+
+/* Avatar */
+.pp-avatar{
+  width:24px; height:24px; border-radius:999px; object-fit:cover; display:inline-block;
+  border:1px solid rgba(0,0,0,.06);
+}
+.pp-avatar--fallback{
+  display:inline-grid; place-items:center;
+  background:#e5e7eb; color:#374151; font-size:12px; font-weight:800;
+}
+
+/* Supprimer de l’annuaire */
+.pp-remove{
+  background:transparent; border:none; cursor:pointer; color:#9ca3af; padding:4px 6px; border-radius:6px;
+}
+.pp-remove:hover{ color:#ef4444; background:rgba(239,68,68,.06); }
+
+/* Ajout en bas du panneau */
+.pp-add{ display:flex; gap:8px; margin-top:10px; }
+
+/* État disabled : on grise l’ancre + on cache le panneau si open */
+.pp-wrap.is-disabled .pp-edit{ opacity:.6; cursor:not-allowed; }
+.pp-wrap.is-disabled .pp-panel{ display:none !important; }
+
+/* Petits écrans */
+@media (max-width: 480px){
+  .pp-panel{ left:0; width:min(92vw, 480px); }
+}
+.kan-quickadd__form{
+  display:grid;
+  gap:0.5rem;
+  grid-template-columns: 1fr minmax(7.5rem, 8.75rem) minmax(10rem, 1fr);
+  align-items: start;
+  width:100%;
+  box-sizing: border-box;
+  border:1px solid var(--border);
+  border-radius:0.75rem;
+  padding:0.625rem;
+  background:#fff;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ← clé : permet aux enfants de se compresser sans “dépasser” */
+.kan-quickadd__form > * { min-width: 0; }
+
+/* champs */
+.kan-quickadd__form .title{ grid-column: 1 / -1; }
+.kan-quickadd__form .prio{ grid-column: 1 / 2; }
+.kan-quickadd__form .assignee{ grid-column: 2 / 3; width:100%; }
+.kan-quickadd__form .actions{
+  grid-column: 3 / 4;
+  display:flex; justify-content:flex-end; gap:0.5rem; align-items:center;
+}
+
+/* petits écrans : tout passe en 2 puis 1 colonnes proprement */
+@media (max-width: 980px){
+  .kan-quickadd__form{ grid-template-columns: 1fr 1fr; }
+  .kan-quickadd__form .actions{ grid-column: 1 / -1; }
+}
+@media (max-width: 560px){
+  .kan-quickadd__form{ grid-template-columns: 1fr; }
+  .kan-quickadd__form .prio,
+  .kan-quickadd__form .assignee,
+  .kan-quickadd__form .actions{ grid-column: 1 / -1; }
+}

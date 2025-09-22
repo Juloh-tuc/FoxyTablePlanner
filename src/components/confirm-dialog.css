@@ -1,0 +1,21 @@
+.cd-overlay{
+  position:fixed; inset:0; background:rgba(0,0,0,.4);
+  display:flex; align-items:center; justify-content:center; z-index:60;
+}
+.cd-panel{
+  background:#fff; width:min(520px, 92vw); border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.15);
+  padding:20px;
+}
+.cd-title{ margin:0 0 8px; font-size:18px; font-weight:600; }
+.cd-message{ margin:0 0 16px; line-height:1.4; }
+.cd-actions{ display:flex; justify-content:flex-end; gap:8px; }
+.cd-btn{
+  border:1px solid #e5e7eb; background:#f9fafb; padding:8px 12px;
+  border-radius:8px; cursor:pointer;
+}
+.cd-cancel:hover{ background:#f3f4f6; }
+.cd-confirm{
+  background:#ef4444; border-color:#ef4444; color:white;
+}
+.cd-confirm:hover{ filter:brightness(.95); }

@@ -1,0 +1,54 @@
+.tdm-overlay{
+  position:fixed; inset:0; background:rgba(17,24,39,.45);
+  display:grid; place-items:center; z-index:50;
+}
+.tdm-panel{
+  width:min(900px, 92vw); max-height:92vh; overflow:auto;
+  background:#fff; border-radius:14px; box-shadow: 0 20px 54px rgba(0,0,0,.22);
+  padding:16px 16px 12px;
+}
+.tdm-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+.tdm-title h3{ margin:0; font-size:1.25rem; line-height:1.2; }
+.tdm-title-chips{ display:flex; gap:8px; margin-top:6px; }
+.tdm-chip{
+  display:inline-block; padding:4px 10px; border-radius:999px; background:#eef2ff; color:#312e81;
+  font-weight:700; font-size:.85rem; border:1px solid rgba(0,0,0,.06);
+}
+.tdm-close{ border:1px solid rgba(0,0,0,.08); background:#fff; border-radius:10px; padding:6px 10px; cursor:pointer; }
+
+.tdm-grid{
+  display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin:10px 2px 6px;
+}
+.tdm-item{ background:#fafafa; border:1px solid #eee; border-radius:12px; padding:10px 12px; }
+.tdm-item.span-2{ grid-column: 1 / -1; }
+.tdm-label{ font-size:.78rem; font-weight:800; color:#6b7280; text-transform:uppercase; letter-spacing:.04em; }
+
+.tdm-kv{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:6px; }
+.tdm-kv div{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.tdm-kv strong{ font-weight:800; color:#111827; }
+
+.tdm-value{ margin-top:6px; font-weight:700; }
+
+.tdm-progress{ display:flex; align-items:center; gap:10px; margin-top:6px; }
+.tdm-bar{ flex:1; height:8px; background:#e5e7eb; border-radius:999px; overflow:hidden; }
+.tdm-fill{ height:100%; background:#7c3aed; }
+
+.tdm-box{
+  margin-top:6px; background:#fff; border:1px solid #eee; border-radius:10px; padding:10px 12px; min-height:44px;
+  white-space:pre-wrap; word-break:break-word;
+}
+
+.tdm-empty{ color:#9ca3af; font-style:normal; }
+
+.tdm-assignees{ display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap; }
+.tdm-avatar{
+  width:28px; height:28px; border-radius:999px; display:inline-grid; place-items:center;
+  background:#ede9fe; color:#4c1d95; font-weight:800; border:1px solid #ddd;
+}
+.tdm-names{ font-weight:600; color:#111827; }
+
+.tdm-foot{ display:flex; justify-content:flex-end; margin-top:10px; }
+.tdm-btn{
+  padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; cursor:pointer;
+}
+.tdm-btn:hover{ background:#f9fafb; }

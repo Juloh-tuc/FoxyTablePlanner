@@ -1,15 +1,15 @@
-// Types partagés
-
+// ---------------- Types de base ----------------
 export type Statut =
-  | "Terminé"
-  | "En cours"
+  | "Pas commencé"
   | "En attente"
+  | "En cours"
   | "Bloqué"
-  | "Pas commencé";
+  | "Terminé";
 
 export type Priorite = "Faible" | "Moyen" | "Élevé";
 
-/** Étiquettes proposées (tu peux en ajouter d'autres si besoin) */
+// ---------------- Étiquettes ----------------
+// ⚠️ Aligne bien les valeurs sur celles utilisées dans TAGS de PlannerTable.tsx
 export type Etiquette =
   | "Site Web"
   | "Front - BO"
@@ -21,22 +21,20 @@ export type Etiquette =
   | "Mobile"
   | "Autre";
 
-export interface Task {
+// ---------------- Tâche ----------------
+export type Task = {
   id: string;
   titre: string;
-
-  debut?: string;      // YYYY-MM-DD
-  echeance?: string;   // YYYY-MM-DD
-
+  debut?: string;
+  echeance?: string;
   admin?: string;
+  assignees?: string[];
   statut: Statut;
   priorite?: Priorite;
-
   budget?: number;
-  avancement?: number; // 0..100
+  avancement?: number;
+  etiquettes?: Etiquette[]; // ✅ typé strictement
   bloquePar?: string;
   remarques?: string;
-
-  /** NOUVEAU : liste d’étiquettes (tags) pour la tâche */
-  etiquettes?: Etiquette[];
-}
+  dependencies?: string; // champ optionnel si tu veux le garder
+};
