@@ -52,13 +52,13 @@ export default function NavBar() {
         {/* Center: desktop nav */}
         <div className="nav-desktop" role="navigation" aria-label="Navigation principale">
           <NavLink to="/table" className={linkClass} onClick={closeMenu}>
-            Table
+            Tableau
           </NavLink>
           <NavLink to="/agile" className={linkClass} onClick={closeMenu}>
             Agile
           </NavLink>
-          <NavLink to="/week" className={linkClass} onClick={closeMenu}>
-            Semaine
+          <NavLink to="/month" className={linkClass} onClick={closeMenu}>
+            Mois
           </NavLink>
         </div>
 
@@ -110,13 +110,13 @@ export default function NavBar() {
       {/* Mobile menu */}
       <div id="menu-mobile" className={`menu-mobile ${isOpen ? "open" : ""}`}>
         <NavLink to="/table" className="mobile-link" onClick={closeMenu}>
-          Table
+          Tableau
         </NavLink>
         <NavLink to="/agile" className="mobile-link" onClick={closeMenu}>
           Agile
         </NavLink>
         <NavLink to="/week" className="mobile-link" onClick={closeMenu}>
-          Semaine
+          Mois
         </NavLink>
         <hr />
         {displayAvatar ? (

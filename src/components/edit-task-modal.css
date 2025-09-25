@@ -1,7 +1,8 @@
 /* ===========================
-   Edit Task Modal
+   Edit Task Modal — styles ciblant .ft-*
    =========================== */
-.etm-overlay {
+
+.ft-modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,.4);
@@ -10,100 +11,120 @@
   justify-content: center;
   z-index: 50;
 }
-
-.etm-panel {
+.ft-modal {
   background: #fff;
   border-radius: 12px;
-  max-width: 640px;
+  max-width: 720px;
   width: 100%;
-  padding: 1.5rem;
+  padding: 1rem;
   box-shadow: 0 10px 30px rgba(0,0,0,.2);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: .75rem;
 }
+.ft-modal.ft-lg { max-width: 720px; }
 
-.etm-head {
+.ft-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: .5rem;
+  gap: .75rem;
 }
-
-.etm-title {
+.ft-modal-title {
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: .01em;
 }
-
-.etm-close {
+.ft-icon-btn {
   border: none;
   background: transparent;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   cursor: pointer;
+  border-radius: 8px;
+  padding: .25rem .4rem;
 }
+.ft-icon-btn:hover { background:#f3f4f6; }
 
-.etm-grid {
+.tdm-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: .85rem;
 }
+.tdm-field { display: flex; flex-direction: column; gap: .25rem; }
+.tdm-field.span-2 { grid-column: span 2; }
+.tdm-label { font-weight: 700; font-size: .9rem; color: #374151; }
 
-.etm-field {
-  display: flex;
-  flex-direction: column;
-  gap: .25rem;
-}
-
-.etm-field.span-2 {
-  grid-column: span 2;
-}
-
-.etm-label {
-  font-weight: 600;
-  font-size: .9rem;
-  color: #374151;
-}
-
-.etm-input,
-.etm-select,
-.etm-textarea {
+.cell-input,
+.remarks-textarea {
   border: 1px solid #d1d5db;
-  border-radius: 8px;
-  padding: .5rem .75rem;
-  font-size: .9rem;
+  border-radius: 10px;
+  padding: .55rem .75rem;
+  font-size: .92rem;
+  background: #fff;
+}
+.remarks-textarea { min-height: 120px; resize: vertical; }
+
+.cell-input:focus,
+.remarks-textarea:focus {
+  outline: none;
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(167,139,250,.22);
 }
 
-.etm-range {
-  width: 100%;
-}
-
-.etm-hint {
+.remarks-meta {
   font-size: .8rem;
   color: #6b7280;
 }
 
-.etm-actions {
+/* Tags checkbox list */
+.tag-option {
+  display: inline-flex;
+  gap: .5rem;
+  align-items: center;
+  padding: .4rem .5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+.tag-option input { transform: translateY(1px); }
+
+/* Actions */
+.ft-modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: .5rem;
-  margin-top: 1rem;
+  margin-top: .25rem;
 }
+.ft-modal-actions.end { justify-content: flex-end; }
 
-.etm-btn {
+.ft-btn {
   padding: .5rem 1rem;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid #d1d5db;
+  background: #fff;
   cursor: pointer;
+  font-weight: 700;
 }
+.ft-btn.ghost { background: #fff; }
+.ft-btn.danger { background:#fee2e2; border-color:#fecaca; color:#7a1c1c; }
 
-.etm-btn.primary {
-  background: #7c3aed;
+/* ⭐ Bouton ENREGISTRER (primary) bien visible */
+.ft-btn.primary {
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
   border-color: #7c3aed;
   color: #fff;
+  font-weight: 800;
+  padding: .6rem 1rem;
+  box-shadow: 0 6px 16px rgba(124,58,237,.20);
+  transition: transform .06s ease, filter .12s ease, box-shadow .12s ease;
 }
+.ft-btn.primary:hover { filter: brightness(1.04); transform: translateY(-1px); }
+.ft-btn.primary:active { transform: translateY(0); }
+.ft-btn:focus-visible { outline: 3px solid rgba(124,58,237,.25); outline-offset: 2px; }
 
-.etm-btn.danger {
-  background: #fee2e2;
-  border-color: #fecaca;
-  color: #7a1c1c;
+/* Responsive */
+@media (max-width: 640px){
+  .tdm-grid{ grid-template-columns: 1fr; }
+  .tdm-field.span-2 { grid-column: span 1; }
 }

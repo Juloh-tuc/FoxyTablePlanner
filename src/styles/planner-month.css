@@ -1,0 +1,238 @@
+/* Vue Mois — header réorganisé, couleurs pastels, pastilles par personne, mode réunion lisible */
+
+:root{
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-2: #f9fafb;
+  --border: #e5e7eb;
+  --text: #0f172a;
+  --muted: #64748b;
+  --brand: #7c3aed;
+  --ring: #a78bfa33;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.06);
+  --shadow: 0 12px 28px rgba(0,0,0,.12);
+
+  /* Pastels pour chips (6 variantes) */
+  --c0: 255, 240, 245; /* rose layette */
+  --c1: 232, 244, 255; /* bleu clair */
+  --c2: 237, 255, 244; /* vert menthe */
+  --c3: 255, 249, 231; /* jaune doux */
+  --c4: 244, 236, 255; /* mauve */
+  --c5: 255, 239, 232; /* pêche */
+}
+
+.month-wrap{
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px 18px 32px;
+  color: var(--text);
+}
+
+/* --- TITRE (ligne à part) --- */
+.month-title-row{
+  display:flex; align-items:center; justify-content:center;
+  margin: .25rem 0 .35rem;
+}
+.title{ font-weight:900; font-size:1.45rem; text-transform:capitalize; letter-spacing:.01em; }
+
+/* --- TOOLBAR sous le titre --- */
+.month-toolbar{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  margin: 6px 0 14px;
+  flex-wrap: wrap;
+}
+.month-toolbar .nav{ display:flex; align-items:center; gap:10px; }
+.month-toolbar .right{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+
+.btn{
+  padding:.45rem .7rem; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer;
+  box-shadow: var(--shadow-sm);
+}
+.btn:hover{ background:#f3f4f6; }
+.btn.today{ font-weight:800; }
+.btn.tiny{ font-size:.85rem; padding:.35rem .6rem; }
+
+/* Ping “Aujourd’hui” */
+.day-cell.ping{ animation: ring 1.2s ease; }
+@keyframes ring{
+  0%{ box-shadow: 0 0 0 0 rgba(124,58,237,.45), var(--shadow-sm); }
+  100%{ box-shadow: 0 0 0 10px rgba(124,58,237,0), var(--shadow-sm); }
+}
+
+/* Toggle réunion (clair, lisible) */
+.meeting-toggle{
+  display:inline-flex; align-items:center; gap:10px;
+  padding:10px 14px; border-radius:999px; border:1px solid #d1d5db; background:#fff; cursor:pointer;
+  font-weight:800;
+}
+.meeting-toggle .mt-dot{ width:10px; height:10px; border-radius:50%; background:#9ca3af; box-shadow: 0 0 0 3px #e5e7eb inset; }
+.meeting-toggle.is-on{ background:#f3f0ff; color:#4c1d95; border-color:#c7b6ff; }
+.meeting-toggle.is-on .mt-dot{ background:#22c55e; box-shadow: 0 0 0 3px #e8e9ff inset; }
+
+/* Filtres */
+.filters{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.flt{ padding:.45rem .6rem; border:1px solid var(--border); border-radius:10px; background:#fff; }
+.flt-input{ min-width:220px; }
+.flt-check{ display:inline-flex; gap:6px; align-items:center; color:#475569; }
+
+/* En-têtes jours */
+.month-grid.month-grid--head{
+  display:grid; grid-template-columns: repeat(7, 1fr); gap:10px;
+  margin: 6px 0 8px;
+}
+.day-head{
+  text-align:center; font-weight:800; color:#475569;
+  text-transform:uppercase; letter-spacing:.04em; font-size:.8rem;
+}
+
+/* Grille */
+.month-grid{ display:grid; grid-template-columns: repeat(7, 1fr); gap:10px; }
+.day-cell{
+  position:relative; min-height:120px; background: var(--surface);
+  border:1px solid var(--border); border-radius:12px; box-shadow: var(--shadow-sm);
+  padding: 8px 8px 44px; display:flex; flex-direction:column; gap:8px; overflow:hidden;
+}
+.day-cell.out{ background:#fcfcfe; color:#6b7280; }
+.day-cell.today{ box-shadow: 0 0 0 2px var(--brand) inset, var(--shadow-sm); background: #f8f7ff; }
+
+.day-num{
+  font-weight:900; color:#111827; width:28px; height:28px;
+  display:grid; place-items:center; border-radius:8px; background:#f3f4f6;
+}
+
+/* Liste de personnes */
+.people-stack{ display:flex; flex-direction:column; gap:6px; }
+
+/* Pastille personne (couleurs pastels selon hash) */
+.person-chip{
+  width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:8px 10px; border-radius:14px; border:1px solid var(--border);
+  background:#fff; cursor:pointer; text-align:left;
+  transition: background .12s ease, transform .06s ease, border-color .12s ease, box-shadow .12s ease;
+}
+.person-chip:hover{ background:#ffffff; transform: translateY(-1px); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.person-chip:focus-visible{ outline:0; box-shadow: 0 0 0 3px var(--ring); border-color:#c4b5fd; }
+
+/* variantes couleur */
+.person-chip.color-h0{ background: rgba(var(--c0), .65); border-color: rgba(var(--c0), .9); }
+.person-chip.color-h1{ background: rgba(var(--c1), .65); border-color: rgba(var(--c1), .9); }
+.person-chip.color-h2{ background: rgba(var(--c2), .65); border-color: rgba(var(--c2), .9); }
+.person-chip.color-h3{ background: rgba(var(--c3), .65); border-color: rgba(var(--c3), .9); }
+.person-chip.color-h4{ background: rgba(var(--c4), .65); border-color: rgba(var(--c4), .9); }
+.person-chip.color-h5{ background: rgba(var(--c5), .65); border-color: rgba(var(--c5), .9); }
+
+.person-chip .avatar{
+  width:26px; height:26px; border-radius:999px; overflow:hidden; border:1px solid var(--border);
+  box-shadow: 0 0 0 3px #eef2ff; flex: 0 0 26px;
+}
+.person-chip .avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+.person-chip .avatar .fallback{ width:100%; height:100%; display:grid; place-items:center; font-size:.72rem; font-weight:900; color:#334155; background:#e2e8f0; }
+.person-chip .person-name{ flex:1 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:800; color:#111827; }
+.person-chip .count-badge{
+  border:1px solid rgba(0,0,0,.06); border-radius:999px; padding:2px 8px; font-weight:900;
+  font-variant-numeric: tabular-nums; background:#fff;
+}
+
+/* Bouton “+ Ajouter” */
+.add-btn{ position:absolute; left:8px; right:8px; bottom:8px; width:auto; padding:6px 10px; border-radius:999px; font-weight:800; background:#fff; }
+
+/* Modale personne */
+.pm-list{ display:flex; flex-direction:column; gap:10px; max-height:56vh; overflow:auto; padding-right:2px; }
+.pm-item{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+  border:1px solid var(--border); border-radius:12px; padding:10px; background:#fff;
+}
+.pm-left{ display:flex; flex-direction:column; gap:4px; min-width:0; }
+.pm-title{ font-weight:800; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:54ch; }
+.pm-meta{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; color:#6b7280; font-size:.9rem; }
+.pm-chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; border:1px solid var(--border); font-size:.85rem; font-weight:700; background:#fff; }
+.pm-chip.prio{ background:#f8fafc; border-color:#e2e8f0; }
+.pm-chip.is-termine{ background:#ecfdf5; border-color:#34d399; color:#065f46; }
+.pm-chip.is-en-cours{ background:#fefce8; border-color:#facc15; color:#854d0e; }
+.pm-chip.is-en-attente{ background:#eff6ff; border-color:#93c5fd; color:#1e40af; }
+.pm-chip.is-bloque{ background:#fef2f2; border-color:#fca5a5; color:#991b1b; }
+.pm-chip.is-pas-commence{ background:#f3f4f6; border-color:#d1d5db; color:#374151; }
+.pm-remarks.one-line{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:36ch; }
+.pm-actions{ display:flex; gap:6px; flex-wrap:wrap; }
+
+/* ===== Mode réunion : palette claire + lisibilité ===== */
+.month-wrap.meeting-on{
+  /* teinte globale très légère, pas de noir */
+  background: linear-gradient(180deg, #f4f7ff 0%, #f7f8fb 100%);
+}
+
+/* cellules et éléments en mode réunion : moins de contraste mais lisibles */
+.month-wrap.meeting-on .day-cell{
+  background:#f9fbff;
+  border-color:#d8e2ff;
+  color:#0f172a;
+}
+.month-wrap.meeting-on .day-cell.today{
+  background:#eef2ff;
+  box-shadow: 0 0 0 2px #93c5fd inset;
+}
+.month-wrap.meeting-on .day-num{
+  background:#e9efff;
+  color:#0f172a;
+}
+.month-wrap.meeting-on .person-chip{
+  background:#ffffff;
+  border-color:#dbe5ff;
+  color:#0f172a;
+}
+.month-wrap.meeting-on .person-chip .avatar{
+  box-shadow: 0 0 0 3px #eef2ff;
+  border-color:#dbe5ff;
+}
+.month-wrap.meeting-on .add-btn{
+  background:#ffffff;
+  border-color:#dbe5ff;
+  color:#0f172a;
+}
+
+/* ===== Désactivation claire (curseur + opacité) ===== */
+.month-wrap button:disabled,
+.month-wrap [aria-disabled="true"]{
+  opacity: .55;
+  cursor: not-allowed;
+  filter: grayscale(.05);
+  box-shadow: none !important;
+}
+
+/* ===== Badge fixe en haut à droite ===== */
+.meeting-badge{
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  background: #0f172a;       /* pilule foncée lisible sur fond clair */
+  color: #fff;
+  border: 1px solid #0b1220;
+  box-shadow: 0 10px 24px rgba(2,6,23,.16);
+}
+.meeting-badge .dot{
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px #064e3b inset;
+}
+
+/* petit état : quand tu quittes le mode réunion on fait disparaître en douceur si tu veux */
+.meeting-badge{
+  transition: opacity .15s ease, transform .15s ease;
+}
+
+
+/* Responsive */
+@media (max-width: 1200px){ .month-wrap{ padding-inline:12px; } }
+@media (max-width: 900px){ .day-cell{ min-height:110px; } .title{ font-size:1.25rem; } }
+@media (max-width: 720px){
+  .month-grid, .month-grid.month-grid--head{ grid-template-columns: repeat(7, minmax(84px,1fr)); }
+  .month-wrap{ overflow-x:auto; }
+}
+@media (max-width: 480px){ .day-cell{ min-height:100px; } .add-btn{ padding:6px 8px; } }

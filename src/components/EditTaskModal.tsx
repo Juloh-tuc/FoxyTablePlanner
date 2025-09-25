@@ -1,187 +1,202 @@
-import React, { useEffect, useRef, useState } from "react";
-import type { Task, Statut } from "../types";
-import "./edit-task-modal.css";
+// src/components/EditTaskModal.tsx
+import { useEffect, useState } from "react";
+import type { Task, Statut, Priorite, Etiquette } from "../types";
+
+/** Options (cohérent avec l'app) */
+const STATUTS: Statut[] = ["Terminé", "En cours", "En attente", "Bloqué", "Pas commencé"];
+const PRESET_TAGS: Etiquette[] = ["Web", "Front-BO", "Back-FO", "Front-FO", "Back-BO", "API", "Design", "Mobile", "Autre"];
 
 type Props = {
-  task: Task;                                  // brouillon à éditer (existant ou nouveau)
-  onCancel: () => void;                        // ferme sans enregistrer
-  onSave: (payload: Task) => void;             // enregistre les modifications
-  onDelete: (taskId: string) => void;          // suppression (avec confirm géré à l'extérieur)
+  task: Task;
+  onClose: () => void;
+  onSave: (updated: Task) => void;
 };
 
-const STATUTS: Statut[] = ["Terminé", "En cours", "En attente", "Bloqué", "Pas commencé"];
-const PRIOS = ["Faible", "Moyen", "Élevé"] as const;
+export default function EditTaskModal({ task, onClose, onSave }: Props) {
+  // --- Form state (aligné avec src/types.ts) ---
+  const [titre, setTitre] = useState(task.titre ?? "");
+  const [admin, setAdmin] = useState(task.admin ?? "");
+  const [statut, setStatut] = useState<Statut>(task.statut);
+  const [priorite, setPriorite] = useState<Priorite | undefined>(task.priorite);
+  const [debut, setDebut] = useState(task.debut ?? "");
+  const [echeance, setEcheance] = useState(task.echeance ?? "");
 
-export default function EditTaskModal({ task, onCancel, onSave, onDelete }: Props) {
-  // On clone pour ne pas muter la prop
-  const [draft, setDraft] = useState<Task>({ ...task });
-  const titleRef = useRef<HTMLInputElement | null>(null);
+  // Bloqué (raison) + Bloqué par
+  const [bloque, setBloque] = useState(task.bloque ?? "");
+  const [bloquePar, setBloquePar] = useState(task.bloquePar ?? "");
 
-  useEffect(() => { titleRef.current?.focus(); }, []);
+  const [remarques, setRemarques] = useState(task.remarques ?? "");
+  const [etiquettes, setEtiquettes] = useState<Etiquette[]>(
+    Array.isArray(task.etiquettes) ? task.etiquettes : []
+  );
 
-  const update = <K extends keyof Task>(key: K, val: Task[K]) =>
-    setDraft(prev => ({ ...prev, [key]: val }));
+  // Reset quand on change de tâche
+  useEffect(() => {
+    setTitre(task.titre ?? "");
+    setAdmin(task.admin ?? "");
+    setStatut(task.statut);
+    setPriorite(task.priorite);
+    setDebut(task.debut ?? "");
+    setEcheance(task.echeance ?? "");
+    setBloque(task.bloque ?? "");
+    setBloquePar(task.bloquePar ?? "");
+    setRemarques(task.remarques ?? "");
+    setEtiquettes(Array.isArray(task.etiquettes) ? task.etiquettes : []);
+  }, [task]);
 
-  const submit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const titre = draft.titre?.trim();
-    if (!titre) return;
-    onSave({
-      ...draft,
-      titre,
-      // garde des valeurs par défaut sûres
-      priorite: draft.priorite ?? "Moyen",
-      statut: draft.statut ?? "Pas commencé",
-      avancement: typeof draft.avancement === "number" ? draft.avancement : 0,
-      budget: typeof draft.budget === "number" ? draft.budget : 0,
-      etiquettes: draft.etiquettes ?? [],
-    });
+  // Helpers
+  const toggleTag = (lbl: Etiquette) => {
+    setEtiquettes((prev) => (prev.includes(lbl) ? prev.filter((t) => t !== lbl) : [...prev, lbl]));
+  };
+
+  const save = () => {
+    const updated: Task = {
+      ...task,
+      titre: (titre || "").slice(0, 80).trim(),
+      admin: (admin || "").trim(),
+      statut,
+      priorite,
+      debut: debut || undefined,
+      echeance: echeance || undefined,
+      bloque: (bloque || "").slice(0, 200).trim(),
+      bloquePar: (bloquePar || "").slice(0, 200).trim(),
+      remarques: (remarques || "").slice(0, 250),
+      etiquettes: [...etiquettes],
+    };
+    onSave(updated);
   };
 
   return (
-    <div className="etm-overlay" role="dialog" aria-modal="true" onClick={onCancel}>
-      <div className="etm-panel" onClick={e => e.stopPropagation()}>
-        <header className="etm-head">
-          <h3 className="etm-title">{task.id ? "Modifier la tâche" : "Nouvelle tâche"}</h3>
-          <button className="etm-close" onClick={onCancel} aria-label="Fermer">✕</button>
-        </header>
+    <div className="ft-modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="ft-modal ft-lg" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="ft-modal-header">
+          <h3 className="ft-modal-title">Éditer la tâche</h3>
+          <button className="ft-icon-btn" onClick={onClose} aria-label="Fermer">✕</button>
+        </div>
 
-        <form className="etm-grid" onSubmit={submit}>
+        {/* Form grid (réutilise les styles communs) */}
+        <div className="tdm-grid" style={{ marginTop: 8 }}>
           {/* Titre */}
-          <label className="etm-field span-2">
-            <span className="etm-label">Titre</span>
+          <div className="tdm-field span-2">
+            <span className="tdm-label">Titre (max 80)</span>
             <input
-              ref={titleRef}
-              className="etm-input"
-              value={draft.titre ?? ""}
-              onChange={e => update("titre", e.target.value)}
-              placeholder="Intitulé de la tâche"
-              required
+              className="cell-input"
+              value={titre}
+              onChange={(e) => setTitre(e.target.value.slice(0, 80))}
+              placeholder="Nom de la tâche"
+              autoFocus
+              maxLength={80}
             />
-          </label>
+            <div className="remarks-meta">{(titre ?? "").length}/80</div>
+          </div>
+
+          {/* Admin */}
+          <div className="tdm-field">
+            <span className="tdm-label">Admin</span>
+            <input
+              className="cell-input"
+              value={admin}
+              onChange={(e) => setAdmin(e.target.value)}
+              placeholder="Responsable…"
+              list="admins-list"
+            />
+          </div>
 
           {/* Statut */}
-          <label className="etm-field">
-            <span className="etm-label">Statut</span>
-            <select
-              className="etm-select"
-              value={draft.statut ?? "Pas commencé"}
-              onChange={e => update("statut", e.target.value as Statut)}
-            >
-              {STATUTS.map(s => <option key={s} value={s}>{s}</option>)}
+          <div className="tdm-field">
+            <span className="tdm-label">Statut</span>
+            <select className="cell-input" value={statut} onChange={(e) => setStatut(e.target.value as Statut)}>
+              {STATUTS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-          </label>
+          </div>
 
           {/* Priorité */}
-          <label className="etm-field">
-            <span className="etm-label">Priorité</span>
+          <div className="tdm-field">
+            <span className="tdm-label">Priorité</span>
             <select
-              className="etm-select"
-              value={draft.priorite ?? "Moyen"}
-              onChange={e => update("priorite", e.target.value as Task["priorite"])}
+              className="cell-input"
+              value={priorite ?? ""}
+              onChange={(e) => setPriorite((e.target.value || "") as Priorite || undefined)}
             >
-              {PRIOS.map(p => <option key={p} value={p}>{p}</option>)}
+              <option value="">—</option>
+              <option value="Faible">Faible</option>
+              <option value="Moyen">Moyen</option>
+              <option value="Élevé">Élevé</option>
             </select>
-          </label>
+          </div>
 
-          {/* Début / Échéance */}
-          <label className="etm-field">
-            <span className="etm-label">Début</span>
-            <input
-              type="date"
-              className="etm-input"
-              value={draft.debut ?? ""}
-              onChange={e => update("debut", e.target.value)}
-            />
-          </label>
-          <label className="etm-field">
-            <span className="etm-label">Échéance</span>
-            <input
-              type="date"
-              className="etm-input"
-              value={draft.echeance ?? ""}
-              onChange={e => update("echeance", e.target.value)}
-            />
-          </label>
+          {/* Début */}
+          <div className="tdm-field">
+            <span className="tdm-label">Début</span>
+            <input type="date" className="cell-input" value={debut || ""} onChange={(e) => setDebut(e.target.value)} />
+          </div>
 
-          {/* Admin (champ simple, tu pourras brancher PeoplePicker si tu veux) */}
-          <label className="etm-field">
-            <span className="etm-label">Admin / Assigné principal</span>
-            <input
-              className="etm-input"
-              value={draft.admin ?? ""}
-              onChange={e => update("admin", e.target.value)}
-              placeholder="Nom"
-            />
-          </label>
+          {/* Échéance */}
+          <div className="tdm-field">
+            <span className="tdm-label">Échéance</span>
+            <input type="date" className="cell-input" value={echeance || ""} onChange={(e) => setEcheance(e.target.value)} />
+          </div>
 
-          {/* Budget */}
-          <label className="etm-field">
-            <span className="etm-label">Budget</span>
+          {/* Bloqué (raison) */}
+          <div className="tdm-field span-2">
+            <span className="tdm-label">Bloqué (raison)</span>
             <input
-              type="number"
-              min={0}
-              className="etm-input"
-              value={draft.budget ?? 0}
-              onChange={e => update("budget", Number(e.target.value))}
+              className="cell-input"
+              value={bloque}
+              onChange={(e) => setBloque(e.target.value.slice(0, 200))}
+              placeholder="Ex: En attente de specs / budget / validation…"
+              maxLength={200}
             />
-          </label>
+            <div className="remarks-meta">{(bloque ?? "").length}/200</div>
+          </div>
 
-          {/* Avancement */}
-          <label className="etm-field">
-            <span className="etm-label">Avancement</span>
+          {/* Bloqué par (qui/quoi) */}
+          <div className="tdm-field span-2">
+            <span className="tdm-label">Bloqué par (qui/quoi)</span>
             <input
-              type="range"
-              min={0}
-              max={100}
-              className="etm-range"
-              value={draft.avancement ?? 0}
-              onChange={e => update("avancement", Number(e.target.value))}
+              className="cell-input"
+              value={bloquePar}
+              onChange={(e) => setBloquePar(e.target.value.slice(0, 200))}
+              placeholder="Ex: Maquettes (Léo) / API (Team Back)…"
+              maxLength={200}
             />
-            <div className="etm-hint">{draft.avancement ?? 0}%</div>
-          </label>
+            <div className="remarks-meta">{(bloquePar ?? "").length}/200</div>
+          </div>
 
-          {/* Bloqué par */}
-          <label className="etm-field">
-            <span className="etm-label">Bloqué par</span>
-            <input
-              className="etm-input"
-              value={draft.bloquePar ?? ""}
-              onChange={e => update("bloquePar", e.target.value)}
-              placeholder="Ex : Attente validation, dépendance…"
-            />
-          </label>
+          {/* Étiquettes */}
+          <div className="tdm-field span-2">
+            <span className="tdm-label">Étiquettes</span>
+            <div className="tag-popover-list" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {PRESET_TAGS.map((lbl) => (
+                <label key={lbl} className="tag-option">
+                  <input type="checkbox" checked={etiquettes.includes(lbl)} onChange={() => toggleTag(lbl)} />
+                  <span>{lbl}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
           {/* Remarques */}
-          <label className="etm-field span-2">
-            <span className="etm-label">Remarques</span>
+          <div className="tdm-field span-2">
+            <span className="tdm-label">Remarques (max 250)</span>
             <textarea
-              className="etm-textarea"
-              rows={3}
+              className="remarks-textarea"
+              value={remarques}
+              onChange={(e) => setRemarques(e.target.value.slice(0, 250))}
+              placeholder="Détails complets, liens, bloquants…"
               maxLength={250}
-              value={draft.remarques ?? ""}
-              onChange={e => update("remarques", e.target.value.slice(0, 250))}
-              placeholder="Détail (max 250 caractères)"
             />
-          </label>
-
-          {/* Actions */}
-          <div className="etm-actions span-2">
-            {task.id && (
-              <button
-                type="button"
-                className="etm-btn danger"
-                onClick={() => onDelete(task.id)}
-                title="Supprimer la tâche"
-              >
-                Supprimer
-              </button>
-            )}
-            <div className="spacer" />
-            <button type="button" className="etm-btn" onClick={onCancel}>Annuler</button>
-            <button type="submit" className="etm-btn primary">Enregistrer</button>
+            <div className="remarks-meta">{(remarques ?? "").length}/250</div>
           </div>
-        </form>
+        </div>
+
+        {/* Actions */}
+        <div className="ft-modal-actions end" style={{ marginTop: 8 }}>
+          {/* ⬇️ AJOUT du modificateur `primary` pour le style violet */}
+          <button className="ft-btn primary save" onClick={save}>Enregistrer</button>
+          <button className="ft-btn ghost" onClick={onClose}>Annuler</button>
+        </div>
       </div>
     </div>
   );
