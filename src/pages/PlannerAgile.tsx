@@ -5,7 +5,9 @@ import type { Task, Statut } from "../types";
 
 import "../styles/planner-common.css";
 import "../styles/planner-agile.css";
-import "../styles/planner-table.css"; // réutilise le bouton "Mode réunion" / ft-toolbar
+import "../styles/planner-table.css";
+
+import CreateTaskModal from "../components/CreateTaskModal";
 
 /* =========================
    Helpers & Constantes
@@ -13,41 +15,57 @@ import "../styles/planner-table.css"; // réutilise le bouton "Mode réunion" / 
 type ColKey = "done" | "progress" | "blocked" | "todo";
 
 const toKey = (s: Statut): ColKey =>
-  s === "Terminé" ? "done" :
-  s === "En cours" ? "progress" :
-  s === "Bloqué" ? "blocked" : "todo";
+  s === "Terminé"    ? "done"    :
+  s === "En cours"   ? "progress":
+  s === "Bloqué"     ? "blocked" :
+  s === "En attente" ? "blocked" : // << ajouté
+                       "todo";
 
 const fromKey = (k: ColKey): Statut =>
   k === "done" ? "Terminé" :
   k === "progress" ? "En cours" :
-  k === "blocked" ? "Bloqué" : "Pas commencé";
+  k === "blocked" ? "Bloqué" :
+  "Pas commencé";
 
-// >>> Ordre demandé: Terminé → En cours → Bloqué → Pas commencé
+// Ordre demandé
 const COLUMNS: Array<{ key: ColKey; title: string; stat: Statut }> = [
-  { key: "done",     title: "Terminé",      stat: "Terminé" },
-  { key: "progress", title: "En cours",     stat: "En cours" },
-  { key: "blocked",  title: "Bloqué",       stat: "Bloqué" },
-  { key: "todo",     title: "Pas commencé", stat: "Pas commencé" },
+  { key: "done", title: "Terminé", stat: "Terminé" },
+  { key: "progress", title: "En cours", stat: "En cours" },
+  { key: "blocked", title: "Bloqué", stat: "Bloqué" },
+  { key: "todo", title: "Pas commencé", stat: "Pas commencé" },
 ];
 
-const STATUTS: Statut[] = ["Pas commencé", "En cours", "Bloqué", "Terminé"];
+// Inclut maintenant "En attente"
+const STATUTS: Statut[] = ["Pas commencé", "En cours", "En attente", "Bloqué", "Terminé"];
+
 const uid = () => Math.random().toString(36).slice(2, 9);
 const todayISO = () => new Date().toISOString().slice(0, 10);
-const uniqueAdmins = (rows: Task[]) =>
-  Array.from(new Set(rows.map(r => r.admin).filter(Boolean))) as string[];
+
+// people = admin + assignees[]
+const uniquePeople = (rows: Task[]) => {
+  const set = new Set<string>();
+  rows.forEach((r) => {
+    if (r.admin) set.add(r.admin);
+    if (Array.isArray(r.assignees)) r.assignees.forEach((a) => a && set.add(a));
+  });
+  return Array.from(set) as string[];
+};
 
 const initials = (name: string) =>
-  (name || "").split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? "").join("");
+  (name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
 
-/** Avatars: mappe "Nom" → fichier réel dans public/avatars */
 const ADMIN_AVATARS: Record<string, string> = {
-  "Julie": "Foxy_Julie.png",
-  "Léo": "léo_foxy.png",
-  "Mohamed": "mohamed_foxy.png",
-  "Myriam": "myriam_foxy.png",
-  "Simon": "simon_foxy.png",
-  "Titouan": "titouan_foxy.png",
-  // "Anaïs": "anais_foxy.png",
+  Julie: "Foxy_Julie.png",
+  Léo: "léo_foxy.png",
+  Mohamed: "mohamed_foxy.png",
+  Myriam: "myriam_foxy.png",
+  Simon: "simon_foxy.png",
+  Titouan: "titouan_foxy.png",
 };
 const avatarUrlFor = (name?: string | null) => {
   if (!name) return null;
@@ -56,94 +74,20 @@ const avatarUrlFor = (name?: string | null) => {
 };
 
 /* ===============================
-   Modale "Nouvelle tâche"
-   =============================== */
-function CreateTaskModal({
-  open, onClose, onCreate, admins,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onCreate: (t: Task) => void;
-  admins: string[];
-}) {
-  const [titre, setTitre] = useState("");
-  const [priorite, setPriorite] = useState<Task["priorite"]>("Moyen");
-  const [admin, setAdmin] = useState<string>(admins[0] ?? "");
-  const [quick, setQuick] = useState("");
-  const [remarques, setRemarques] = useState("");
-
-  useEffect(() => {
-    if (open) {
-      setTitre(""); setPriorite("Moyen"); setAdmin(admins[0] ?? "");
-      setQuick(""); setRemarques("");
-    }
-  }, [open, admins]);
-
-  if (!open) return null;
-  const submit = () => {
-    const t: Task = {
-      id: uid(),
-      titre: (titre || "").slice(0,80),
-      statut: "Pas commencé",
-      priorite,
-      admin: admin || "—",
-      debut: todayISO(),
-      remarques: (remarques || "").slice(0,250),
-    };
-    (t as any).quickDetail = quick.slice(0,80);
-    onCreate(t);
-  };
-
-  return (
-    <div className="ft-modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
-      <div className="ft-modal ft-lg" onClick={(e) => e.stopPropagation()}>
-        <div className="ft-modal-header">
-          <h3 className="ft-modal-title">Nouvelle tâche</h3>
-          <button className="ft-icon-btn" onClick={onClose} aria-label="Fermer">✕</button>
-        </div>
-        <div className="ctm-grid">
-          <label className="field span-2">
-            <span className="label">Titre (max 80)</span>
-            <input className="cell-input" value={titre} onChange={e=>setTitre(e.target.value)} placeholder="Titre..." maxLength={80} autoFocus/>
-          </label>
-          <label className="field">
-            <span className="label">Priorité</span>
-            <select className="cell-input" value={priorite ?? ""} onChange={e=>setPriorite(e.target.value as any)}>
-              <option value="Élevé">Élevé</option>
-              <option value="Moyen">Moyen</option>
-              <option value="Faible">Faible</option>
-            </select>
-          </label>
-          <label className="field">
-            <span className="label">Admin</span>
-            <input className="cell-input" list="admins-list" value={admin} onChange={e=>setAdmin(e.target.value)} placeholder="Responsable..." />
-          </label>
-          <label className="field span-2">
-            <span className="label">Détail rapide (80)</span>
-            <input className="cell-input" value={quick} onChange={e=>setQuick(e.target.value.slice(0,80))} placeholder="Court contexte visible sur la carte"/>
-          </label>
-          <label className="field span-2">
-            <span className="label">Remarques (250)</span>
-            <textarea className="cell-input" rows={4} value={remarques} onChange={e=>setRemarques(e.target.value.slice(0,250))} placeholder="Détails, liens, bloquants..."/>
-          </label>
-        </div>
-        <div className="ft-modal-actions end">
-          <button className="ft-btn ghost" onClick={onClose}>Annuler</button>
-          <button className="ft-btn primary" onClick={submit} disabled={!titre.trim()}>Créer</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ===============================
    Modale Archiver / Supprimer
    =============================== */
 function ArchiveDeleteDialog({
-  open, title, onArchive, onDelete, onCancel,
+  open,
+  title,
+  onArchive,
+  onDelete,
+  onCancel,
 }: {
-  open: boolean; title: string;
-  onArchive: () => void; onDelete: () => void; onCancel: () => void;
+  open: boolean;
+  title: string;
+  onArchive: () => void;
+  onDelete: () => void;
+  onCancel: () => void;
 }) {
   if (!open) return null;
   return (
@@ -152,9 +96,15 @@ function ArchiveDeleteDialog({
         <h3 className="ft-modal-title">Que faire de « {title} » ?</h3>
         <p className="ft-modal-text">Vous pouvez archiver (réversible) ou supprimer (définitif).</p>
         <div className="ft-modal-actions">
-          <button className="ft-btn" onClick={onArchive}>Archiver</button>
-          <button className="ft-btn danger" onClick={onDelete}>Supprimer</button>
-          <button className="ft-btn ghost" onClick={onCancel}>Annuler</button>
+          <button className="ft-btn" onClick={onArchive}>
+            Archiver
+          </button>
+          <button className="ft-btn danger" onClick={onDelete}>
+            Supprimer
+          </button>
+          <button className="ft-btn ghost" onClick={onCancel}>
+            Annuler
+          </button>
         </div>
       </div>
     </div>
@@ -162,47 +112,44 @@ function ArchiveDeleteDialog({
 }
 
 /* ===============================
-   Section Notes “post-it” — simplifiée
+   Section Notes (inchangée)
    =============================== */
 type StickyColor = "yellow" | "pink" | "green" | "blue";
 type Note = { id: string; text: string; color: StickyColor; author: string; isPrivate: boolean };
 
 const loadNotes = (k: string): Note[] => {
-  try { return JSON.parse(localStorage.getItem(k) || "[]"); } catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(k) || "[]");
+  } catch {
+    return [];
+  }
 };
 const saveNotes = (k: string, v: Note[]) => localStorage.setItem(k, JSON.stringify(v));
 
-function StickyNotesSection({
-  storageKey, meetingOn,
-}: {
-  storageKey: string;
-  meetingOn: boolean;
-}) {
+function StickyNotesSection({ storageKey, meetingOn }: { storageKey: string; meetingOn: boolean }) {
   const [notes, setNotes] = useState<Note[]>(() => loadNotes(storageKey));
   const [hidePrivate, setHidePrivate] = useState<boolean>(meetingOn);
 
-  useEffect(()=>saveNotes(storageKey, notes),[notes, storageKey]);
-  useEffect(()=>setHidePrivate(meetingOn),[meetingOn]);
+  useEffect(() => saveNotes(storageKey, notes), [notes, storageKey]);
+  useEffect(() => setHidePrivate(meetingOn), [meetingOn]);
 
   const add = () => {
-    setNotes(prev => [
-      ...prev,
-      { id: uid(), text: "", color: "yellow", author: "Moi", isPrivate: false }
-    ]);
+    setNotes((prev) => [...prev, { id: uid(), text: "", color: "yellow", author: "Moi", isPrivate: false }]);
   };
-  const upd = (id: string, patch: Partial<Note>) =>
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...patch } : n));
-  const del = (id: string) => setNotes(prev => prev.filter(n => n.id !== id));
+  const upd = (id: string, patch: Partial<Note>) => setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+  const del = (id: string) => setNotes((prev) => prev.filter((n) => n.id !== id));
 
-  const list = useMemo(() => hidePrivate ? notes.filter(n => !n.isPrivate) : notes, [notes, hidePrivate]);
+  const list = useMemo(() => (hidePrivate ? notes.filter((n) => !n.isPrivate) : notes), [notes, hidePrivate]);
 
   return (
     <div className="notes-wrap">
       <div className="notes-toolbar">
         <div className="left">
-          <button className="ft-btn" onClick={add}>+ Post-it</button>
+          <button className="ft-btn" onClick={add}>
+            + Post-it
+          </button>
           <label className="nt-inline">
-            <input type="checkbox" checked={hidePrivate} onChange={e=>setHidePrivate(e.target.checked)} />
+            <input type="checkbox" checked={hidePrivate} onChange={(e) => setHidePrivate(e.target.checked)} />
             Cacher notes privées
           </label>
         </div>
@@ -210,26 +157,24 @@ function StickyNotesSection({
       </div>
 
       <div className="notes-grid">
-        {list.map(n => (
+        {list.map((n) => (
           <div key={n.id} className={`sticky ${n.color}`}>
             <div className="sticky-head">
-              <select value={n.color} onChange={e=>upd(n.id, { color: e.target.value as StickyColor })}>
+              <select value={n.color} onChange={(e) => upd(n.id, { color: e.target.value as StickyColor })}>
                 <option value="yellow">Jaune</option>
                 <option value="pink">Rose</option>
                 <option value="green">Vert</option>
                 <option value="blue">Bleu</option>
               </select>
               <label className="nt-inline small">
-                <input type="checkbox" checked={n.isPrivate} onChange={e=>upd(n.id, { isPrivate: e.target.checked })}/>
+                <input type="checkbox" checked={n.isPrivate} onChange={(e) => upd(n.id, { isPrivate: e.target.checked })} />
                 Privé
               </label>
-              <button className="ft-btn icon" title="Supprimer" onClick={()=>del(n.id)}>🗑️</button>
+              <button className="ft-btn icon" title="Supprimer" onClick={() => del(n.id)}>
+                🗑️
+              </button>
             </div>
-            <textarea
-              value={n.text}
-              placeholder="Note…"
-              onChange={e=>upd(n.id, { text: e.target.value })}
-            />
+            <textarea value={n.text} placeholder="Note…" onChange={(e) => upd(n.id, { text: e.target.value })} />
           </div>
         ))}
         {list.length === 0 && <div className="nt-empty">Aucune note à afficher.</div>}
@@ -245,7 +190,7 @@ export default function PlannerAgile() {
   const [rows, setRows] = useState<Task[]>(() => JSON.parse(JSON.stringify(seed)));
   const [meetingOn, setMeetingOn] = useState(false);
 
-  // Filtres tableau
+  // Filtres
   const [q, setQ] = useState("");
   const [fAdmin, setFAdmin] = useState<string | "Tous">("Tous");
   const [fStatut, setFStatut] = useState<Statut | "Tous">("Tous");
@@ -254,17 +199,21 @@ export default function PlannerAgile() {
 
   // Création / suppression
   const [createOpen, setCreateOpen] = useState(false);
-  const [adOpen, setAdOpen] = useState<{open:boolean; id?: string; title?: string}>({open:false});
+  const [adOpen, setAdOpen] = useState<{ open: boolean; id?: string; title?: string }>({ open: false });
 
-  // Admins (pour datalist + filtres)
-  const admins = useMemo(() => uniqueAdmins(rows), [rows]);
+  // Admins/personnes (pour datalist + sélecteur)
+  const admins = useMemo(() => uniquePeople(rows), [rows]);
 
   // Recherche / filtres
   const filtered = useMemo(() => {
     const text = q.trim().toLowerCase();
-    return rows.filter(t => {
+    return rows.filter((t) => {
       if (!showArchived && t.archived) return false;
-      if (fAdmin !== "Tous" && t.admin !== fAdmin) return false;
+      if (fAdmin !== "Tous") {
+        const ass = Array.isArray(t.assignees) ? t.assignees : [];
+        const match = t.admin === fAdmin || ass.includes(fAdmin);
+        if (!match) return false;
+      }
       if (fStatut !== "Tous" && t.statut !== fStatut) return false;
       if (fProgress !== "Tous") {
         const p = t.avancement ?? 0;
@@ -272,7 +221,10 @@ export default function PlannerAgile() {
         if (p < min) return false;
       }
       if (!text) return true;
-      const hay = [t.titre, t.admin, t.remarques, t.bloque, t.bloquePar].filter(Boolean).join(" ").toLowerCase();
+      const hay = [t.titre, t.admin, ...(Array.isArray(t.assignees) ? t.assignees : []), t.remarques, t.bloque, t.bloquePar]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
       return hay.includes(text);
     });
   }, [rows, q, fAdmin, fStatut, fProgress, showArchived]);
@@ -280,8 +232,8 @@ export default function PlannerAgile() {
   // Groupement par colonne (d’après filtered)
   const grouped = useMemo(() => {
     const map = new Map<ColKey, Task[]>();
-    COLUMNS.forEach(c => map.set(c.key, []));
-    filtered.forEach(t => map.get(toKey(t.statut))!.push(t));
+    COLUMNS.forEach((c) => map.set(c.key, []));
+    filtered.forEach((t) => map.get(toKey(t.statut))!.push(t));
     return map;
   }, [filtered]);
 
@@ -303,25 +255,25 @@ export default function PlannerAgile() {
     if (meetingOn) return;
     const id = dragId.current || e.dataTransfer.getData("text/plain");
     if (!id) return;
-    setRows(prev => prev.map(t => t.id === id ? { ...t, statut: fromKey(dst) } : t));
+    setRows((prev) => prev.map((t) => (t.id === id ? { ...t, statut: fromKey(dst) } : t)));
     dragId.current = null;
   };
 
   // Actions archive/suppr
-  const askArchiveDelete = (t: Task) => setAdOpen({open:true, id:t.id, title:t.titre});
+  const askArchiveDelete = (t: Task) => setAdOpen({ open: true, id: t.id, title: t.titre });
   const doArchive = () => {
     if (!adOpen.id) return;
-    setRows(prev => prev.map(t => t.id === adOpen.id ? { ...t, archived: true, archivedAt: new Date().toISOString() } : t));
-    setAdOpen({open:false});
+    setRows((prev) => prev.map((t) => (t.id === adOpen.id ? { ...t, archived: true, archivedAt: new Date().toISOString() } : t)));
+    setAdOpen({ open: false });
   };
   const doDelete = () => {
     if (!adOpen.id) return;
-    setRows(prev => prev.filter(t => t.id !== adOpen.id));
-    setAdOpen({open:false});
+    setRows((prev) => prev.filter((t) => t.id !== adOpen.id));
+    setAdOpen({ open: false });
   };
 
   const createTask = (t: Task) => {
-    setRows(prev => [{...t}, ...prev]);
+    setRows((prev) => [{ ...t }, ...prev]);
     setCreateOpen(false);
   };
 
@@ -329,15 +281,16 @@ export default function PlannerAgile() {
      UI
      =============================== */
   const wrapperClasses = ["agile-wrap", "ft-fullbleed", meetingOn ? "meeting-on" : ""].join(" ");
+  const [openPeopleId, setOpenPeopleId] = useState<string | null>(null);
 
   return (
     <section className={wrapperClasses}>
-      {/* Toolbar (même look que la table) */}
+      {/* Toolbar */}
       <div className="ft-toolbar">
         <div className="ft-left">
           <button
             className={`ft-btn meeting-toggle ${meetingOn ? "is-on" : ""}`}
-            onClick={() => setMeetingOn(v => !v)}
+            onClick={() => setMeetingOn((v) => !v)}
             title="Basculer Mode réunion"
           >
             <span className="mt-dot" />
@@ -346,20 +299,33 @@ export default function PlannerAgile() {
 
           <div className="ft-input-wrap">
             <span className="ft-input-ico">🔎</span>
-            <input className="ft-input" placeholder="Rechercher (titre, admin, remarques…)" value={q} onChange={e=>setQ(e.target.value)}/>
+            <input
+              className="ft-input"
+              placeholder="Rechercher (titre, personnes, remarques…)"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
           </div>
 
-          <select className="ft-select" value={fAdmin} onChange={e=>setFAdmin(e.target.value as any)}>
-            <option value="Tous">Tous admins</option>
-            {admins.map(a => <option key={a} value={a}>{a}</option>)}
+          <select className="ft-select" value={fAdmin} onChange={(e) => setFAdmin(e.target.value as any)}>
+            <option value="Tous">Toutes personnes</option>
+            {admins.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
           </select>
 
-          <select className="ft-select" value={fStatut} onChange={e=>setFStatut(e.target.value as any)}>
+          <select className="ft-select" value={fStatut} onChange={(e) => setFStatut(e.target.value as any)}>
             <option value="Tous">Tous statuts</option>
-            {STATUTS.map(s => <option key={s} value={s}>{s}</option>)}
+            {STATUTS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
           </select>
 
-          <select className="ft-select" value={fProgress} onChange={e=>setFProgress(e.target.value as any)} title="Avancement minimal">
+          <select className="ft-select" value={fProgress} onChange={(e) => setFProgress(e.target.value as any)} title="Avancement minimal">
             <option value="Tous">Avancement ≥ 0%</option>
             <option value="0">≥ 0%</option>
             <option value="25">≥ 25%</option>
@@ -369,20 +335,22 @@ export default function PlannerAgile() {
           </select>
 
           <label className="nt-inline">
-            <input type="checkbox" checked={showArchived} onChange={e=>setShowArchived(e.target.checked)} />
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
             Afficher archivées
           </label>
         </div>
 
         <div className="ft-right">
-          <button className="ft-btn primary" onClick={()=>setCreateOpen(true)} disabled={meetingOn}>+ Nouvelle tâche</button>
+          <button className="ft-btn primary" onClick={() => setCreateOpen(true)} disabled={meetingOn}>
+            + Nouvelle tâche
+          </button>
           <span className="ft-count">{filtered.length} tâches</span>
         </div>
       </div>
 
       {/* Board */}
       <div className="kan-board">
-        {COLUMNS.map(col => {
+        {COLUMNS.map((col) => {
           const list = grouped.get(col.key)!;
           return (
             <section key={col.key} className={`kan-col col-${col.key}`} onDragOver={onDragOver} onDrop={onDropTo(col.key)}>
@@ -392,10 +360,14 @@ export default function PlannerAgile() {
               </header>
 
               <div className="kan-col__list">
-                {list.map(t => {
+                {list.map((t) => {
                   const quick = (t as any).quickDetail as string | undefined;
-                  const aUrl = avatarUrlFor(t.admin);
                   const isArchived = !!t.archived;
+
+                  const people =
+                    Array.isArray(t.assignees) && t.assignees.length ? t.assignees : t.admin ? [t.admin] : [];
+                  const extra = Math.max(people.length - 3, 0);
+
                   return (
                     <article
                       key={t.id}
@@ -404,42 +376,100 @@ export default function PlannerAgile() {
                       onDragStart={!meetingOn && !isArchived ? onDragStart(t.id) : undefined}
                     >
                       <div className="kan-card__top">
-                        <div className="kan-card__titlewrap" style={{ display:"flex", alignItems:"center", gap:8 }}>
-                          <div className="admin-avatar" aria-hidden>
-                            {aUrl ? (
-                              <img
-                                src={encodeURI(aUrl)}
-                                alt=""
-                                onError={(e) => {
-                                  const parent = e.currentTarget.parentElement;
-                                  if (parent) parent.innerHTML = `<span class="fallback">${initials(t.admin || "") || "?"}</span>`;
+                        <div className="kan-card__titlewrap" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {/* Avatar stack */}
+                          <div className="avatar-stack" aria-hidden>
+                            {people.slice(0, 3).map((name, i) => {
+                              const url = avatarUrlFor(name);
+                              return (
+                                <span key={`${name}-${i}`} className="admin-avatar">
+                                  {url ? (
+                                    <img
+                                      src={encodeURI(url)}
+                                      alt=""
+                                      onError={(e) => {
+                                        const parent = e.currentTarget.parentElement;
+                                        if (parent)
+                                          parent.innerHTML = `<span class="fallback">${initials(name) || "?"}</span>`;
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="fallback">{initials(name) || "?"}</span>
+                                  )}
+                                </span>
+                              );
+                            })}
+                            {extra > 0 && (
+                              <button
+                                type="button"
+                                className="more-badge"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenPeopleId(openPeopleId === t.id ? null : t.id);
                                 }}
-                              />
-                            ) : (
-                              <span className="fallback">{initials(t.admin || "") || "?"}</span>
+                              >
+                                +{extra}
+                              </button>
+                            )}
+                            {openPeopleId === t.id && (
+                              <div className="people-pop" onClick={(e) => e.stopPropagation()}>
+                                {people.map((name, i) => (
+                                  <div key={`${name}-${i}`} className="people-row">
+                                    <span className="admin-avatar small">
+                                      {avatarUrlFor(name) ? (
+                                        <img src={encodeURI(avatarUrlFor(name)!)} alt="" />
+                                      ) : (
+                                        <span className="fallback">{initials(name) || "?"}</span>
+                                      )}
+                                    </span>
+                                    <span className="people-name">{name}</span>
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </div>
-                          <strong className="kan-card__title" title={t.titre}>{t.titre}</strong>
+
+                          <strong className="kan-card__title" title={t.titre}>
+                            {t.titre}
+                          </strong>
                         </div>
                         <div className="kan-card__actions">
                           {!isArchived ? (
-                            <button className="btn danger icon" title="Archiver/Supprimer" onClick={()=>askArchiveDelete(t)}>🗑️</button>
+                            <button className="btn danger icon" title="Archiver/Supprimer" onClick={() => askArchiveDelete(t)}>
+                              🗑️
+                            </button>
                           ) : (
-                            <button className="btn icon" title="Restaurer" onClick={()=>{
-                              setRows(prev => prev.map(x => x.id===t.id ? ({...x, archived:false, archivedAt:null}) : x));
-                            }}>↩️</button>
+                            <button
+                              className="btn icon"
+                              title="Restaurer"
+                              onClick={() => {
+                                setRows((prev) => prev.map((x) => (x.id === t.id ? { ...x, archived: false, archivedAt: null } : x)));
+                              }}
+                            >
+                              ↩️
+                            </button>
                           )}
                         </div>
                       </div>
 
                       <div className="kan-card__meta">
-                        <span className="badge-prio" data-level={t.priorite}><span className="dot"></span>{t.priorite ?? "—"}</span>
-                        <span className={`status-chip is-${toKey(t.statut)}`}><span className={`dot ${toKey(t.statut)}`}></span>{t.statut}</span>
+                        <span className="badge-prio" data-level={t.priorite}>
+                          <span className="dot"></span>
+                          {t.priorite ?? "—"}
+                        </span>
+                        <span className={`status-chip is-${toKey(t.statut)}`}>
+                          <span className={`dot ${toKey(t.statut)}`}></span>
+                          {t.statut}
+                        </span>
                         {(t.avancement ?? 0) > 0 && <span className="prog-chip">{t.avancement}%</span>}
                       </div>
 
                       {quick && <p className="kan-card__quick">{quick}</p>}
-                      {t.remarques && <div className="kan-card__notes one-line-ellipsis" title={t.remarques}>{t.remarques}</div>}
+                      {t.remarques && (
+                        <div className="kan-card__notes one-line-ellipsis" title={t.remarques}>
+                          {t.remarques}
+                        </div>
+                      )}
                     </article>
                   );
                 })}
@@ -456,19 +486,22 @@ export default function PlannerAgile() {
         <StickyNotesSection storageKey="kanban-notes" meetingOn={meetingOn} />
       </div>
 
-      {/* Datalist Admins pour la modale de création */}
+      {/* Datalist Admins pour d’autres composants si besoin */}
       <datalist id="admins-list">
-        {admins.map(a => <option key={a} value={a} />)}
+        {admins.map((a) => (
+          <option key={a} value={a} />
+        ))}
       </datalist>
 
       {/* Modales */}
-      <CreateTaskModal open={createOpen} onClose={()=>setCreateOpen(false)} onCreate={createTask} admins={admins} />
+      {createOpen && <CreateTaskModal admins={admins} onCreate={createTask} onClose={() => setCreateOpen(false)} />}
+
       <ArchiveDeleteDialog
         open={adOpen.open}
         title={adOpen.title ?? "cette tâche"}
         onArchive={doArchive}
         onDelete={doDelete}
-        onCancel={()=>setAdOpen({open:false})}
+        onCancel={() => setAdOpen({ open: false })}
       />
     </section>
   );

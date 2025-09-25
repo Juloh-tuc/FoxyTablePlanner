@@ -3,7 +3,14 @@ import type { Task, Statut } from "../types";
 import "./task-detail-modal.css";
 
 /** On autorise bloque/bloquePar même si ton Task global ne les a pas encore */
-type TaskCompat = Task & { bloque?: string; bloquePar?: string; debut?: string; echeance?: string; priorite?: "Faible" | "Moyen" | "Élevé"; etiquettes?: string[] };
+type TaskCompat = Task & {
+  bloque?: string;
+  bloquePar?: string;
+  debut?: string;
+  echeance?: string;
+  priorite?: "Faible" | "Moyen" | "Élevé";
+  etiquettes?: string[];
+};
 
 type Props = {
   task: TaskCompat;
@@ -12,11 +19,12 @@ type Props = {
   onDelete: (taskId: string) => void;
 };
 
+/** slug sans \p{Diacritic} (compat TS/Babel) */
 const slug = (s: Statut | string) =>
   (s || "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[\u0300-\u036f]/g, "") // retire diacritiques
     .replace(/\s+/g, "-");
 
 const short = (iso?: string) => (iso ? iso.slice(0, 10) : "—");
@@ -38,7 +46,9 @@ function TaskDetailModal({ task, onClose, onEdit, onDelete }: Props) {
             <h3 className="tdm-title">{task.titre || "Tâche"}</h3>
             <span className={`badge badge-${slug(task.statut)}`}>{task.statut}</span>
           </div>
-          <button className="tdm-close" onClick={onClose} aria-label="Fermer">✕</button>
+          <button className="tdm-close" onClick={onClose} aria-label="Fermer">
+            ✕
+          </button>
         </header>
 
         {/* Infos principales */}
@@ -116,9 +126,15 @@ function TaskDetailModal({ task, onClose, onEdit, onDelete }: Props) {
 
         {/* Actions */}
         <footer className="tdm-actions">
-          <button className="tdm-btn primary" onClick={() => onEdit(task.id)}>✏️ Modifier</button>
-          <button className="tdm-btn danger ghost" onClick={() => onDelete(task.id)}>🗑️ Supprimer…</button>
-          <button className="tdm-btn" onClick={onClose}>Fermer</button>
+          <button className="tdm-btn primary" onClick={() => onEdit(task.id)}>
+            ✏️ Modifier
+          </button>
+          <button className="tdm-btn danger ghost" onClick={() => onDelete(task.id)}>
+            🗑️ Supprimer…
+          </button>
+          <button className="tdm-btn" onClick={onClose}>
+            Fermer
+          </button>
         </footer>
       </div>
     </div>
