@@ -42,7 +42,7 @@ const COLUMNS: Array<{ key: ColKey; title: string; stat: Statut }> = [
 const STATUTS: Statut[] = ["Pas commencé", "En cours", "En attente", "Bloqué", "Terminé"];
 
 const uid = () => Math.random().toString(36).slice(2, 9);
-const todayISO = () => new Date().toISOString().slice(0, 10);
+// const todayISO = () => new Date().toISOString().slice(0, 10); // Removed as it is unused
 
 // people = admin + assignees[]
 const uniquePeople = (rows: Task[]) => {
@@ -571,6 +571,7 @@ export default function PlannerAgile() {
         <EditTaskModal
           open={edit.open}
           task={edit.task}
+          tasks={rows}
           admins={admins}
           onSave={saveEdit}
           onClose={() => setEdit({ open: false })}

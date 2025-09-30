@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect } from "react";
 import { seed } from "../data";
 import type { Task, Statut } from "../types";
 
-
 import "../components/edit-task-modal.css";
 import "../styles/planner-month.css";
 
@@ -11,7 +10,7 @@ import EditTaskModal from "../components/EditTaskModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useConfirm } from "../hooks/useConfirm";
 
-/* ---------- Helpers ---------- */
+/* ---------- Helpers dates ---------- */
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
@@ -20,8 +19,10 @@ const mondayIndex = (jsDay: number) => (jsDay + 6) % 7;
 type DayCell = { date: string; inMonth: boolean; isToday: boolean };
 const uid = () => Math.random().toString(36).slice(2, 9);
 
+/* ---------- Constantes ---------- */
 const STATUTS: Statut[] = ["Pas commencé", "En cours", "En attente", "Bloqué", "Terminé"];
 
+/* ---------- Avatars & initials ---------- */
 const initials = (name: string) =>
   (name || "")
     .split(/\s+/)
@@ -29,13 +30,6 @@ const initials = (name: string) =>
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
-
-// couleur stable par personne (0..5)
-const colorIndexFor = (name: string) => {
-  let h = 0;
-  for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 6;
-  return h;
-};
 
 /** Avatars dans /public/avatars */
 const ADMIN_AVATARS: Record<string, string> = {
@@ -51,6 +45,58 @@ const avatarUrlFor = (name?: string | null) => {
   const f = ADMIN_AVATARS[name.trim()];
   return f ? `/avatars/${f}` : null;
 };
+
+/* ---------- Couleurs par personne (persistant & stable) ---------- */
+const COLOR_KEY = "planner.personColors.v1";
+const PALETTE_SIZE = 10; // .color-h0..color-h9
+
+type ColorMap = Record<string, number>;
+const loadColorMap = (): ColorMap => {
+  try {
+    const raw = localStorage.getItem(COLOR_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+const saveColorMap = (map: ColorMap) => {
+  try {
+    localStorage.setItem(COLOR_KEY, JSON.stringify(map));
+  } catch {}
+};
+
+/** Hash FNV-1a pour repli déterministe (si palette saturée) */
+const fnv1a = (s: string) => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+};
+
+/** Donne l'index couleur pour un nom, en l'assignant si absent. */
+function colorIndexForPerson(name: string): number {
+  if (!name) return 0;
+  const map = loadColorMap();
+  if (name in map) return map[name];
+
+  // cherche un slot libre
+  const used = new Set(Object.values(map));
+  let idx = -1;
+  for (let i = 0; i < PALETTE_SIZE; i++) {
+    if (!used.has(i)) {
+      idx = i;
+      break;
+    }
+  }
+  // si tous occupés, repli déterministe
+  if (idx === -1) idx = fnv1a(name) % PALETTE_SIZE;
+
+  map[name] = idx;
+  saveColorMap(map);
+  return idx;
+}
 
 /* ---------- Dialogs ---------- */
 function ArchiveDeleteDialog({
@@ -166,11 +212,7 @@ function PersonDayModal({
         </div>
 
         <div className="ft-modal-actions end">
-          <button
-            className="ft-btn primary"
-            onClick={() => onAddTask(person, dateISO)}
-            disabled={meeting}
-          >
+          <button className="ft-btn primary" onClick={() => onAddTask(person, dateISO)} disabled={meeting}>
             + Ajouter une tâche
           </button>
           <button className="ft-btn ghost" onClick={onClose}>
@@ -190,7 +232,7 @@ export default function PlannerMonth() {
   const [editTask, setEditTask] = useState<Task | null>(null);
   const confirm = useConfirm();
 
-  // Meeting (léger thème + read-only)
+  // Meeting (thème + read-only)
   const [meeting, setMeeting] = useState<boolean>(() => {
     try {
       return localStorage.getItem("planner.month.meeting") === "1";
@@ -329,10 +371,13 @@ export default function PlannerMonth() {
   };
 
   const quickNewForDay = (dayStr: string, person?: string) => {
+    const admin = person ?? (fAdmin !== "Tous" ? fAdmin : "");
     const draft: Task = {
       id: uid(),
       titre: "Nouvelle tâche",
-      admin: person ?? (fAdmin !== "Tous" ? fAdmin : ""),
+      admin,
+      assignees: admin ? [admin] : [],   // ✅ requis & utile par défaut
+
       statut: "Pas commencé",
       priorite: "Moyen",
       debut: dayStr,
@@ -341,6 +386,12 @@ export default function PlannerMonth() {
       budget: 0,
       remarques: "",
       etiquettes: [],
+
+      // Champs “safe” souvent présents
+      dependsOn: [],
+      blocks: [],
+      archived: false,
+      archivedAt: null as any, // adapte si ton type attend undefined | string
     };
     setEditTask(draft);
   };
@@ -354,12 +405,12 @@ export default function PlannerMonth() {
 
   return (
     <section className={`month-wrap ${meeting ? "meeting-on" : ""}`}>
-      {/* Titre seul au-dessus */}
+      {/* Titre */}
       <div className="month-title-row">
         <h2 className="title">{monthLabel}</h2>
       </div>
 
-      {/* Barre d’actions en dessous (nav + filtres + toggle) */}
+      {/* Toolbar */}
       <header className="month-toolbar">
         <div className="nav">
           <button className="btn" onClick={() => setCursor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}>
@@ -439,7 +490,7 @@ export default function PlannerMonth() {
                 <div className="people-stack">
                   {entries.map(([person, info]) => {
                     const img = avatarUrlFor(person);
-                    const colorClass = `color-h${colorIndexFor(person)}`;
+                    const colorClass = `color-h${colorIndexForPerson(person)}`; // ✅ couleur stable par personne
                     return (
                       <button
                         key={person}
@@ -463,15 +514,14 @@ export default function PlannerMonth() {
                 </div>
               )}
 
-              {!meeting && (
-                <button
-                  className="btn tiny add-btn"
-                  onClick={() => quickNewForDay(date, entries.length === 1 ? entries[0][0] : undefined)}
-                  title="Ajouter une tâche"
-                >
-                  + Ajouter
-                </button>
-              )}
+              <button
+                className="btn tiny add-btn"
+                onClick={() => quickNewForDay(date, entries.length === 1 ? entries[0][0] : undefined)}
+                title={meeting ? "Mode réunion : création désactivée" : "Ajouter une tâche"}
+                disabled={meeting}
+              >
+                + Ajouter
+              </button>
             </div>
           );
         })}
@@ -510,7 +560,7 @@ export default function PlannerMonth() {
             prev.map((x) => (x.id === id ? { ...x, archived: true, archivedAt: new Date().toISOString() } : x))
           );
         }}
-        onDelete={(id) => {
+        onDelete={async (id) => {
           if (meeting) return;
           const t = rows.find((x) => x.id === id);
           setPersonDay({ open: false, person: null, dateISO: null });
@@ -518,7 +568,7 @@ export default function PlannerMonth() {
         }}
       />
 
-      {/* Modals standards */}
+      {/* Modales standards */}
       {openTask && (
         <TaskDetailModal
           task={openTask}

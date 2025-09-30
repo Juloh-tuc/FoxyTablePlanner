@@ -41,12 +41,15 @@ type Props = {
 export default function EditTaskModal({
   open,
   task,
-  tasks,
+   tasks = [],
   admins: _admins, // non utilisé ici, on garde la signature
   onSave,
   onClose,
   onAskArchiveDelete,
 }: Props) {
+  if (!open || !task) return null; // ✅ double garde-fou
+
+
 
   // 🔒 Normalisation initiale : admin = string, assignees = string[]
   const [draft, setDraft] = useState<Task>({

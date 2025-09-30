@@ -115,8 +115,8 @@ export default function NavBar() {
         <NavLink to="/agile" className="mobile-link" onClick={closeMenu}>
           Agile
         </NavLink>
-        <NavLink to="/week" className="mobile-link" onClick={closeMenu}>
-          Mois
+        <NavLink to="/month" className="mobile-link" onClick={closeMenu}>
+   Mois
         </NavLink>
         <hr />
         {displayAvatar ? (
