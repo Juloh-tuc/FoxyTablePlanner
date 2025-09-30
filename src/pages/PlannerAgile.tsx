@@ -8,6 +8,9 @@ import "../styles/planner-agile.css";
 import "../styles/planner-table.css";
 
 import CreateTaskModal from "../components/CreateTaskModal";
+import EditTaskModal from "../components/EditTaskModal"; // édition
+import ConfirmDialog from "../components/ConfirmDialog"; // ⬅️ ajouté
+import { useConfirm } from "../hooks/useConfirm";        // ⬅️ ajouté
 
 /* =========================
    Helpers & Constantes
@@ -18,7 +21,7 @@ const toKey = (s: Statut): ColKey =>
   s === "Terminé"    ? "done"    :
   s === "En cours"   ? "progress":
   s === "Bloqué"     ? "blocked" :
-  s === "En attente" ? "blocked" : // << ajouté
+  s === "En attente" ? "blocked" :
                        "todo";
 
 const fromKey = (k: ColKey): Statut =>
@@ -35,7 +38,7 @@ const COLUMNS: Array<{ key: ColKey; title: string; stat: Statut }> = [
   { key: "todo", title: "Pas commencé", stat: "Pas commencé" },
 ];
 
-// Inclut maintenant "En attente"
+// Inclut "En attente"
 const STATUTS: Statut[] = ["Pas commencé", "En cours", "En attente", "Bloqué", "Terminé"];
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -112,7 +115,7 @@ function ArchiveDeleteDialog({
 }
 
 /* ===============================
-   Section Notes (inchangée)
+   Notes post-it — couleur aléatoire + CONFIRM avant suppression
    =============================== */
 type StickyColor = "yellow" | "pink" | "green" | "blue";
 type Note = { id: string; text: string; color: StickyColor; author: string; isPrivate: boolean };
@@ -126,18 +129,39 @@ const loadNotes = (k: string): Note[] => {
 };
 const saveNotes = (k: string, v: Note[]) => localStorage.setItem(k, JSON.stringify(v));
 
+const randomColor = (): StickyColor => {
+  const colors: StickyColor[] = ["yellow", "pink", "green", "blue"];
+  return colors[Math.floor(Math.random() * colors.length)];
+};
+
 function StickyNotesSection({ storageKey, meetingOn }: { storageKey: string; meetingOn: boolean }) {
   const [notes, setNotes] = useState<Note[]>(() => loadNotes(storageKey));
   const [hidePrivate, setHidePrivate] = useState<boolean>(meetingOn);
+
+  // Hook de confirmation
+  const confirm = useConfirm();
 
   useEffect(() => saveNotes(storageKey, notes), [notes, storageKey]);
   useEffect(() => setHidePrivate(meetingOn), [meetingOn]);
 
   const add = () => {
-    setNotes((prev) => [...prev, { id: uid(), text: "", color: "yellow", author: "Moi", isPrivate: false }]);
+    setNotes((prev) => [
+      ...prev,
+      { id: uid(), text: "", color: randomColor(), author: "Moi", isPrivate: false },
+    ]);
   };
-  const upd = (id: string, patch: Partial<Note>) => setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+  const upd = (id: string, patch: Partial<Note>) =>
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
   const del = (id: string) => setNotes((prev) => prev.filter((n) => n.id !== id));
+
+  const askDelete = async (n: Note) => {
+    const preview = (n.text || "").trim().slice(0, 40).replace(/\s+/g, " ");
+    const msg = preview
+      ? `Êtes-vous sûr de vouloir supprimer “${preview}${n.text.length > 40 ? "…" : ""}” ? Cette action est définitive.`
+      : "Êtes-vous sûr de vouloir supprimer cette note ? Cette action est définitive.";
+    const ok = await confirm.ask(msg);
+    if (ok) del(n.id);
+  };
 
   const list = useMemo(() => (hidePrivate ? notes.filter((n) => !n.isPrivate) : notes), [notes, hidePrivate]);
 
@@ -145,7 +169,7 @@ function StickyNotesSection({ storageKey, meetingOn }: { storageKey: string; mee
     <div className="notes-wrap">
       <div className="notes-toolbar">
         <div className="left">
-          <button className="ft-btn" onClick={add}>
+          <button className="ft-btn" onClick={add} disabled={meetingOn}>
             + Post-it
           </button>
           <label className="nt-inline">
@@ -160,25 +184,44 @@ function StickyNotesSection({ storageKey, meetingOn }: { storageKey: string; mee
         {list.map((n) => (
           <div key={n.id} className={`sticky ${n.color}`}>
             <div className="sticky-head">
-              <select value={n.color} onChange={(e) => upd(n.id, { color: e.target.value as StickyColor })}>
-                <option value="yellow">Jaune</option>
-                <option value="pink">Rose</option>
-                <option value="green">Vert</option>
-                <option value="blue">Bleu</option>
-              </select>
               <label className="nt-inline small">
-                <input type="checkbox" checked={n.isPrivate} onChange={(e) => upd(n.id, { isPrivate: e.target.checked })} />
+                <input
+                  type="checkbox"
+                  checked={n.isPrivate}
+                  onChange={(e) => upd(n.id, { isPrivate: e.target.checked })}
+                  disabled={meetingOn}
+                />
                 Privé
               </label>
-              <button className="ft-btn icon" title="Supprimer" onClick={() => del(n.id)}>
+              <button
+                className="ft-btn icon"
+                title="Supprimer"
+                onClick={() => askDelete(n)}
+                disabled={meetingOn}
+              >
                 🗑️
               </button>
             </div>
-            <textarea value={n.text} placeholder="Note…" onChange={(e) => upd(n.id, { text: e.target.value })} />
+            <textarea
+              value={n.text}
+              placeholder="Note…"
+              onChange={(e) => upd(n.id, { text: e.target.value })}
+              disabled={meetingOn}
+            />
           </div>
         ))}
         {list.length === 0 && <div className="nt-empty">Aucune note à afficher.</div>}
       </div>
+
+      {/* Modale de confirmation réutilisable */}
+      <ConfirmDialog
+        open={confirm.open}
+        message={confirm.message}
+        confirmLabel="Supprimer"
+        cancelLabel="Annuler"
+        onConfirm={confirm.confirm}
+        onCancel={confirm.cancel}
+      />
     </div>
   );
 }
@@ -200,6 +243,9 @@ export default function PlannerAgile() {
   // Création / suppression
   const [createOpen, setCreateOpen] = useState(false);
   const [adOpen, setAdOpen] = useState<{ open: boolean; id?: string; title?: string }>({ open: false });
+
+  // Édition
+  const [edit, setEdit] = useState<{ open: boolean; task?: Task }>({ open: false });
 
   // Admins/personnes (pour datalist + sélecteur)
   const admins = useMemo(() => uniquePeople(rows), [rows]);
@@ -263,7 +309,9 @@ export default function PlannerAgile() {
   const askArchiveDelete = (t: Task) => setAdOpen({ open: true, id: t.id, title: t.titre });
   const doArchive = () => {
     if (!adOpen.id) return;
-    setRows((prev) => prev.map((t) => (t.id === adOpen.id ? { ...t, archived: true, archivedAt: new Date().toISOString() } : t)));
+    setRows((prev) =>
+      prev.map((t) => (t.id === adOpen.id ? { ...t, archived: true, archivedAt: new Date().toISOString() } : t))
+    );
     setAdOpen({ open: false });
   };
   const doDelete = () => {
@@ -275,6 +323,20 @@ export default function PlannerAgile() {
   const createTask = (t: Task) => {
     setRows((prev) => [{ ...t }, ...prev]);
     setCreateOpen(false);
+  };
+
+  // édition
+  const openEdit = (t: Task) => {
+    if (meetingOn || t.archived) return;
+    setEdit({ open: true, task: t });
+  };
+  const saveEdit = (updated: Task) => {
+    setRows((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)));
+    setEdit({ open: false });
+  };
+  const askArchiveDeleteFromEdit = (t: Task) => {
+    setEdit({ open: false });
+    askArchiveDelete(t);
   };
 
   /* ===============================
@@ -374,6 +436,8 @@ export default function PlannerAgile() {
                       className={`kan-card ${isArchived ? "is-archived" : ""}`}
                       draggable={!meetingOn && !isArchived}
                       onDragStart={!meetingOn && !isArchived ? onDragStart(t.id) : undefined}
+                      onClick={() => openEdit(t)}
+                      style={{ cursor: !meetingOn && !isArchived ? "pointer" : undefined }}
                     >
                       <div className="kan-card__top">
                         <div className="kan-card__titlewrap" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -435,15 +499,22 @@ export default function PlannerAgile() {
                         </div>
                         <div className="kan-card__actions">
                           {!isArchived ? (
-                            <button className="btn danger icon" title="Archiver/Supprimer" onClick={() => askArchiveDelete(t)}>
+                            <button
+                              className="btn danger icon"
+                              title="Archiver/Supprimer"
+                              onClick={(e) => { e.stopPropagation(); askArchiveDelete(t); }}
+                            >
                               🗑️
                             </button>
                           ) : (
                             <button
                               className="btn icon"
                               title="Restaurer"
-                              onClick={() => {
-                                setRows((prev) => prev.map((x) => (x.id === t.id ? { ...x, archived: false, archivedAt: null } : x)));
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRows((prev) =>
+                                  prev.map((x) => (x.id === t.id ? { ...x, archived: false, archivedAt: null } : x))
+                                );
                               }}
                             >
                               ↩️
@@ -495,6 +566,17 @@ export default function PlannerAgile() {
 
       {/* Modales */}
       {createOpen && <CreateTaskModal admins={admins} onCreate={createTask} onClose={() => setCreateOpen(false)} />}
+
+      {edit.open && edit.task && (
+        <EditTaskModal
+          open={edit.open}
+          task={edit.task}
+          admins={admins}
+          onSave={saveEdit}
+          onClose={() => setEdit({ open: false })}
+          onAskArchiveDelete={askArchiveDeleteFromEdit}
+        />
+      )}
 
       <ArchiveDeleteDialog
         open={adOpen.open}

@@ -1,6 +1,7 @@
 /* ===========================
    planner-table.css — full-bleed, thème clair, mode "réunion/tableau" mauve,
    titre-lien moderne, priorités colorées, popover étiquettes, lecture seule
+   + pastilles Admin et popover .pp-* (nouveau)
    =========================== */
 
 /* ----------- Reset palette locale ----------- */
@@ -85,7 +86,7 @@
 }
 .meeting-toggle .mt-dot{ width:10px; height:10px; border-radius:50%; background:#9ca3af; box-shadow: 0 0 0 3px #e5e7eb inset; }
 .meeting-toggle.is-on{ background:#f5f3ff; color:#1f2937; border-color:#ddd6fe; }
-.meeting-toggle.is-on .mt-dot{ background:#22c55e; box-shadow: 0 0 0 3px #e9d5ff inset; }
+.meeting-toggle.is-on .mt-dot{ background:#22c55e; box-shadow:0 0 0 3px #e9d5ff inset; }
 
 /* ----------- Table ----------- */
 .table{
@@ -136,7 +137,7 @@
 .col-titre{ min-width: 40rem; }
 .col-remarques{ min-width: 36rem; }
 .col-debut, .col-echeance{ min-width: 8.5rem; }
-.col-admin{ min-width: 11rem; }
+.col-admin{ min-width: 11rem; position: relative; }
 .col-statut{ min-width: 9rem; }
 .col-priorite{ min-width: 8.5rem; }
 .col-bloque, .col-bloque-par{ min-width: 16rem; }
@@ -177,15 +178,18 @@
 .rename-btn{ border-color:#e7e7fb; }
 .rename-btn:hover{ background:#f6f7ff; }
 
-/* ----------- Admin inline ----------- */
+/* ----------- Admin inline (ancienne puce) ----------- */
 .admin-chip{
   padding:6px 10px; border-radius:999px; border:1px solid #e5e7eb; background:#fff; cursor:pointer;
-  font-weight:700;
+  font-weight:700; display:inline-flex; align-items:center; gap:8px;
 }
 .admin-chip:hover{ background:#f9fafb; }
-.admin-edit{ display:flex; align-items:center; gap:8px; }
-.admin-input{ min-width: 12rem; }
-.admin-edit-actions{ display:flex; gap:6px; }
+.admin-avatar{
+  width:28px; height:28px; border-radius:999px; overflow:hidden;
+  border:1px solid #e5e7eb; display:inline-grid; place-items:center; background:#fff;
+}
+.admin-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+.admin-avatar .fallback{ font-size:.8rem; font-weight:800; color:#334155; }
 
 /* ----------- Priorité — pills colorées ----------- */
 .prio-pill{
@@ -201,11 +205,11 @@
   text-align:center;
   box-shadow: 0 0.0625rem 0.125rem rgba(0,0,0,.08);
 }
-.prio-low   { background: linear-gradient(135deg, #3b82f6, #60a5fa); }   /* Faible = bleu doux */
-.prio-medium{ background: linear-gradient(135deg, #f59e0b, #f97316); }   /* Moyen = orange */
-.prio-high  { background: linear-gradient(135deg, #ef4444, #f97393); }   /* Élevé = rouge/rose */
+.prio-low   { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+.prio-medium{ background: linear-gradient(135deg, #f59e0b, #f97316); }
+.prio-high  { background: linear-gradient(135deg, #ef4444, #f97393); }
 
-/* ----------- Badges statut (slug: termine, en-cours, en-attente, bloque, pas-commence) ----------- */
+/* ----------- Badges statut ----------- */
 .badge{
   display:inline-flex; align-items:center; gap:6px;
   padding:4px 8px; border-radius:999px; border:1px solid #e5e7eb; font-size:.8rem; font-weight:700;
@@ -247,7 +251,7 @@
 /* ----------- Actions / cellule ----------- */
 .ft-actions{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 
-/* ----------- Modales (confirm, archivées, edit/detail réutilisent ces styles) ----------- */
+/* ----------- Modales ----------- */
 .ft-modal-overlay{
   position:fixed; inset:0; background:rgba(17,24,39,.45);
   display:flex; align-items:center; justify-content:center; z-index:50;
@@ -276,7 +280,7 @@
 .ft-arch-title{ font-weight:600; }
 .ft-arch-meta{ display:flex; gap:8px; align-items:center; color:#6b7280; font-size:.9rem; }
 
-/* ----------- Lecture seule : griser les actions désactivées ----------- */
+/* ----------- Lecture seule ----------- */
 .is-readonly button[disabled],
 .is-readonly .ft-btn[disabled],
 .meeting-on [disabled],
@@ -286,7 +290,7 @@
   filter: grayscale(0.15);
 }
 
-/* ----------- Mode "réunion/tableau" — thème CLAIR mauve ----------- */
+/* ----------- Mode "réunion/tableau" ----------- */
 .meeting-on .ft-toolbar{
   background: linear-gradient(90deg, #ede9fe, #eef2ff);
   color:#1f2937;
@@ -324,7 +328,7 @@
   background:#22c55e; box-shadow:0 0 0 3px #e9d5ff inset;
 }
 
-/* Badge fixe en haut à droite (affiché via TSX si meetingOn) */
+/* Badge fixe en haut à droite */
 .meeting-badge{
   position: fixed;
   top: 10px;
@@ -361,7 +365,7 @@
 }
 .meeting-on .title-link .chev{ color:#7c3aed; }
 
-/* ----------- Form inputs génériques réutilisés ----------- */
+/* ----------- Form inputs génériques ----------- */
 .cell-input{
   width:100%; max-width:100%;
   padding:0.5rem 0.625rem;
@@ -384,3 +388,217 @@
   .col-titre{ min-width: 22rem; }
   .col-remarques{ min-width: 20rem; }
 }
+
+/* ==== Filtre multi-admins (toolbar) ==== */
+.admin-filter { position: relative; }
+
+.af-popover{
+  position:absolute; top: calc(100% + 6px); left: 0;
+  width: min(320px, 86vw);
+  background:#fff; border:1px solid var(--ft-brd); border-radius:12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.12);
+  padding:10px; z-index: 20;
+}
+
+.af-head{
+  display:flex; align-items:center; gap:8px; margin-bottom:6px;
+}
+.af-head .spacer{ flex:1; }
+
+.af-list{
+  display:flex; flex-direction:column; gap:6px;
+  max-height: 260px; overflow:auto; padding-right:2px;
+}
+.af-row{
+  display:flex; align-items:center; gap:10px;
+  padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px;
+}
+.af-row:hover{ background:#f9fafb; }
+
+.af-actions{
+  margin-top:8px; display:flex; justify-content:flex-end; gap:8px;
+}
+
+/* ==== Popover personnes (ancienne version, gardée si utilisée ailleurs) ==== */
+.people-popover{
+  position:absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1000;
+  width: min(380px, 86vw);
+  background:#fff;
+  border:1px solid var(--ft-brd);
+  border-radius:12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.12);
+  padding:10px;
+}
+.people-popover-head{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:8px;
+}
+.people-list{
+  display:flex; flex-direction:column; gap:8px;
+  max-height: 260px; overflow:auto; padding-right:2px;
+}
+.people-row{
+  display:grid;
+  grid-template-columns: auto 28px 1fr auto;
+  align-items:center;
+  gap:10px;
+  padding:6px 8px;
+  border:1px solid #e5e7eb; border-radius:8px;
+}
+.people-row:hover{ background:#f9fafb; }
+
+.opt-avatar{
+  width:28px; height:28px; border-radius:999px; overflow:hidden;
+  border:1px solid #e5e7eb; display:inline-grid; place-items:center;
+  background:#fff; font-weight:800; color:#334155;
+}
+.opt-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+.opt-name{ font-weight:600; color:#111827; }
+.opt-admin-radio{ display:inline-flex; align-items:center; gap:6px; }
+.opt-admin-label{ font-size:.8rem; color:#475569; }
+
+.people-popover-actions{
+  display:flex; justify-content:flex-end; gap:8px; margin-top:10px;
+}
+
+/* === Admin pastilles compactes (avatars + initiales) — NOUVEAU === */
+.avatar-stack{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+
+.pastille-btn{
+  border:0;
+  background:transparent;
+  padding:0;
+  margin:0;
+  cursor:pointer;
+}
+
+.pastille{
+  width:28px;
+  height:28px;
+  border-radius:999px;
+  display:inline-grid;
+  place-items:center;
+  border:1px solid var(--ft-brd);
+  overflow:hidden;
+  background:#fff;
+  position:relative;
+  box-shadow: var(--shadow-sm);
+  font-weight:800;
+  font-size:.8rem;
+  color:#334155;
+}
+.pastille img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+.pastille.empty{ background:#f3f4f6; color:#475569; }
+.pastille.more{
+  background:#fff;
+  padding:0 6px;
+  width:auto;
+  min-width:28px;
+}
+.pastille.is-admin{
+  outline: 2px solid #a78bfa; /* highlight admin */
+  outline-offset: 2px;
+}
+.pastille .fallback{
+  font-weight:800;
+  font-size:.8rem;
+  color:#334155;
+}
+.admin-crown{
+  position:absolute;
+  bottom:-6px;
+  right:-6px;
+  font-size:.65rem;
+  color:#7c3aed;
+}
+
+/* === Popover “Personnes” .pp-* (utilisé par le TSX) — NOUVEAU === */
+.pp-popover{
+  position:absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1000;
+  width: min(380px, 86vw);
+  background:#fff;
+  border:1px solid var(--ft-brd);
+  border-radius:12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.12);
+  padding:10px;
+
+  /* correctifs anti-débordement */
+  box-sizing: border-box;
+  max-width: min(420px, 92vw);
+  overflow: hidden;
+}
+.pp-popover.slim{ max-width: min(360px, 92vw); }
+
+.pp-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:8px;
+
+  /* NEW: autoriser le retour à la ligne propre */
+  flex-wrap: wrap;
+}
+.pp-head .spacer{ flex:1; }
+
+.pp-search{
+  /* NEW: prendre l'espace dispo mais pouvoir rétrécir */
+  flex: 1 1 160px;
+  min-width: 0;
+
+  padding:0.45rem 0.6rem;
+  border-radius:10px;
+  border:1px solid var(--ft-brd);
+  background:#fff;
+  color:var(--ft-text);
+}
+.pp-search:focus{
+  outline:none;
+  box-shadow:0 0 0 3px var(--ft-ring);
+  border-color:#c4b5fd;
+}
+
+/* NEW: empêcher les petits boutons de se casser / déborder */
+.pp-head .ft-btn.small,
+.pp-head .ft-btn.small.ghost,
+.pp-head .ft-icon-btn{
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.pp-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-height: 260px;
+  overflow:auto;
+  padding-right:2px;
+}
+.pp-row{
+  display:grid;
+  grid-template-columns: auto 28px 1fr auto;
+  align-items:center;
+  gap:10px;
+  padding:6px 8px;
+  border:1px solid #e5e7eb;
+  border-radius:8px;
+}
+.pp-row:hover{ background:#f9fafb; }
+
+/* utilitaire générique si besoin ailleurs */
+.spacer{ flex:1; }

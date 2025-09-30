@@ -1,9 +1,11 @@
+// src/pages/PlannerTable.tsx
 import { useEffect, useMemo, useState } from "react";
 import { seed } from "../data";
 import type { Task, Statut, Etiquette } from "../types";
+
 import "../styles/planner-common.css";
 import "../styles/planner-table.css";
-import "../styles/avatars.css"; // styles avatars (petites pastilles rondes)
+import "../styles/avatars.css";
 
 import TaskDetailModal from "../components/TaskDetailModal";
 import EditTaskModal from "../components/EditTaskModal";
@@ -17,13 +19,20 @@ const PRESET_ADMINS = ["Simon","Titouan","Léo","Myriam","Anaïs","Julie","Moham
 
 const short = (iso?: string) => (iso ? iso.slice(0, 10) : "—");
 
-const uniqueAdmins = (tasks: Task[]) =>
-  Array.from(new Set(tasks.map((t) => t.admin).filter(Boolean))) as string[];
+const uniqueAdmins = (tasks: Task[]) => {
+  const s = new Set<string>();
+  tasks.forEach(t => {
+    if (t.admin) s.add(t.admin);
+    if (Array.isArray(t.assignees)) t.assignees.forEach(a => a && s.add(a));
+  });
+  return Array.from(s);
+};
 
 const slug = (s: string) =>
   (s || "")
     .toLowerCase()
     .normalize("NFD")
+    // @ts-ignore: unicode classes may not be supported in some TS configs
     .replace(/\p{Diacritic}/gu, "")
     .replace(/\s+/g, "-");
 
@@ -31,18 +40,17 @@ const prioClass = (p?: Task["priorite"]) =>
   p === "Faible" ? "prio-low" : p === "Élevé" ? "prio-high" : "prio-medium";
 
 /* =========================
-   Avatars — mapping exact → fichiers dans public/avatars
+   Avatars
    ========================= */
 const ADMIN_AVATARS: Record<string, string> = {
-  "Julie": "Foxy_Julie.png",
-  "Léo": "léo_foxy.png",
-  "Mohamed": "mohamed_foxy.png",
-  "Myriam": "myriam_foxy.png",
-  "Simon": "simon_foxy.png",
-  "Titouan": "titouan_foxy.png",
+  Julie: "Foxy_Julie.png",
+  Léo: "léo_foxy.png",
+  Mohamed: "mohamed_foxy.png",
+  Myriam: "myriam_foxy.png",
+  Simon: "simon_foxy.png",
+  Titouan: "titouan_foxy.png",
   // "Anaïs": "anais_foxy.png",
 };
-
 const initials = (name: string) =>
   (name || "")
     .split(/\s+/)
@@ -50,7 +58,6 @@ const initials = (name: string) =>
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
-
 const avatarUrlFor = (name?: string | null) => {
   if (!name) return null;
   const file = ADMIN_AVATARS[name.trim()];
@@ -64,7 +71,7 @@ type PlannerTableProps = { readOnly?: boolean };
 type ConfirmState = { open: boolean; taskId?: string; label?: string };
 
 /* =========================
-   Modales internes
+   Modales internes (confirm + archivées)
    ========================= */
 function ConfirmDialog3({
   open, title, message, onArchive, onDelete, onCancel,
@@ -98,16 +105,16 @@ function ArchivedTasksModal({
   const [admin, setAdmin] = useState<string | "Tous">("Tous");
 
   const admins = useMemo(
-    () => Array.from(new Set(tasks.map((t) => t.admin).filter(Boolean))) as string[],
+    () => Array.from(new Set(tasks.flatMap(t => [t.admin, ...(t.assignees ?? [])]).filter(Boolean))) as string[],
     [tasks]
   );
 
   const list = useMemo(() => {
     const qn = q.trim().toLowerCase();
     return tasks
-      .filter((t) => (admin === "Tous" ? true : t.admin === admin))
+      .filter((t) => (admin === "Tous" ? true : t.admin === admin || (t.assignees ?? []).includes(admin)))
       .filter((t) => {
-        const hay = `${t.titre} ${t.admin ?? ""} ${t.priorite ?? ""} ${t.bloque ?? ""} ${t.bloquePar ?? ""} ${(t.remarques ?? "")}`.toLowerCase();
+        const hay = `${t.titre} ${t.admin ?? ""} ${(t.assignees ?? []).join(" ")} ${t.priorite ?? ""} ${t.bloque ?? ""} ${t.bloquePar ?? ""} ${(t.remarques ?? "")}`.toLowerCase();
         return qn ? hay.includes(qn) : true;
       })
       .sort((a, b) => (b.archivedAt || "").localeCompare(a.archivedAt || ""));
@@ -133,7 +140,7 @@ function ArchivedTasksModal({
             />
           </div>
           <select className="ft-select" value={admin} onChange={(e) => setAdmin(e.target.value as any)}>
-            <option value="Tous">Tous les admins</option>
+            <option value="Tous">Toutes personnes</option>
             {admins.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
@@ -168,11 +175,59 @@ function ArchivedTasksModal({
 }
 
 /* =========================
+   Dépendances — helpers
+   ========================= */
+const byId = (tasks: Task[]) => Object.fromEntries(tasks.map((t) => [t.id, t]));
+const uniq = <T,>(arr: T[]) => Array.from(new Set(arr));
+
+/** Une tâche peut-elle commencer ? => toutes ses deps sont "Terminé" */
+const canStart = (t: Task, all: Task[]) => {
+  const map = byId(all);
+  const deps = t.dependsOn ?? [];
+  if (!deps.length) return true;
+  return deps.every((id) => map[id]?.statut === "Terminé");
+};
+
+/** Maintient la symétrie A.blocks ↔ B.dependsOn autour de la tâche mise à jour */
+function syncGraph(all: Task[], updated: Task): Task[] {
+  const map = new Map(all.map((t) => [t.id, { ...t }]));
+  const u = { ...updated };
+  u.dependsOn = uniq((u.dependsOn ?? []).filter((id) => id !== u.id));
+  u.blocks = uniq((u.blocks ?? []).filter((id) => id !== u.id));
+
+  // Nettoyage des liens obsolètes par rapport à u
+  for (const t of map.values()) {
+    if (t.id === u.id) continue;
+    // si t.dependsOn contient u.id mais u ne bloque plus t => retire
+    t.dependsOn = (t.dependsOn ?? []).filter((id) => !(id === u.id && !(u.blocks ?? []).includes(t.id)));
+    // si t.blocks contient u.id mais u ne dépend plus de t => retire
+    t.blocks = (t.blocks ?? []).filter((id) => !(id === u.id && !(u.dependsOn ?? []).includes(t.id)));
+  }
+
+  // Ajoute les nouveaux liens
+  for (const bid of u.blocks ?? []) {
+    const b = map.get(bid);
+    if (b) b.dependsOn = uniq([...(b.dependsOn ?? []), u.id]);
+  }
+  for (const did of u.dependsOn ?? []) {
+    const d = map.get(did);
+    if (d) d.blocks = uniq([...(d.blocks ?? []), u.id]);
+  }
+
+  map.set(u.id, u);
+  return Array.from(map.values());
+}
+
+/* =========================
    Composant principal
    ========================= */
 export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
   const [tasks, setTasks] = useState<Task[]>(() => JSON.parse(JSON.stringify(seed)) as Task[]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const selectedTask = useMemo(
+    () => tasks.find((t) => t.id === selectedTaskId) ?? null,
+    [tasks, selectedTaskId]
+  );
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   // Mode réunion
@@ -183,45 +238,42 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
   const [archOpen, setArchOpen] = useState(false);
 
-  // Inline edit
-  const [editingAdminFor, setEditingAdminFor] = useState<string | null>(null);
-  const [tempAdmin, setTempAdmin] = useState("");
+  // Inline edit (titre)
   const [editingTitleFor, setEditingTitleFor] = useState<string | null>(null);
   const [tempTitle, setTempTitle] = useState("");
-  const [editingBlockedFor, setEditingBlockedFor] = useState<string | null>(null);
-  const [tempBlocked, setTempBlocked] = useState("");
-  const [editingBlockedByFor, setEditingBlockedByFor] = useState<string | null>(null);
-  const [tempBlockedBy, setTempBlockedBy] = useState("");
+
+  // Étiquettes
   const [tagPickerFor, setTagPickerFor] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState<Etiquette[]>([]);
 
-  const selectedTask = useMemo(
-    () => tasks.find((t) => t.id === selectedTaskId) || null,
-    [tasks, selectedTaskId]
-  );
+  // Admin/personnes (nouveau design)
+  const [peoplePickerFor, setPeoplePickerFor] = useState<string | null>(null);
+  const [peopleDraft, setPeopleDraft] = useState<string[]>([]);
+  const [adminDraft, setAdminDraft] = useState<string>(""); // radio admin
+  const [peopleSearch, setPeopleSearch] = useState("");
 
-  // Ferme toutes les éditions quand readOnly OU meetingOn passent à true
-  useEffect(() => {
-    if (readOnly || meetingOn) {
-      setEditingAdminFor(null);
-      setEditingTitleFor(null);
-      setEditingBlockedFor(null);
-      setEditingBlockedByFor(null);
-      setTagPickerFor(null);
-    }
-  }, [readOnly, meetingOn]);
+  // Sélecteur “Bloque”
+  const [blockPickerFor, setBlockPickerFor] = useState<string | null>(null);
+  const [blockDraft, setBlockDraft] = useState<string[]>([]);
+  const [blockSearch, setBlockSearch] = useState("");
 
-  /* ====== Filtres ====== */
+  // Filtres
   const [q, setQ] = useState("");
   const [statut, setStatut] = useState<Statut | "Tous">("Tous");
-  const [admin, setAdmin] = useState<string | "Tous">("Tous");
+  const [adminSel, setAdminSel] = useState<string[]>([]);
+  const [adminsOpen, setAdminsOpen] = useState(false);
   const [archFilter, setArchFilter] = useState<"actives" | "archivees" | "toutes">("actives");
 
-  // Admins: presets + dynamiques, sans doublons
+  // Admins: presets + dynamiques
   const admins = useMemo(() => {
     const dyn = uniqueAdmins(tasks);
     return Array.from(new Set([...PRESET_ADMINS, ...dyn]));
   }, [tasks]);
+
+  const toggleAdminFilter = (name: string) =>
+    setAdminSel((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
+
+  const idMap = useMemo(() => byId(tasks), [tasks]);
 
   const filtered = useMemo(() => {
     const qn = q.trim().toLowerCase();
@@ -229,11 +281,18 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
       if (archFilter === "actives" && t.archived) return false;
       if (archFilter === "archivees" && !t.archived) return false;
       if (statut !== "Tous" && t.statut !== statut) return false;
-      if (admin !== "Tous" && t.admin !== admin) return false;
+
+      if (adminSel.length > 0) {
+        const inAdmin = t.admin && adminSel.includes(t.admin);
+        const inAssignees = (t.assignees ?? []).some(a => adminSel.includes(a));
+        if (!inAdmin && !inAssignees) return false;
+      }
+
       if (!qn) return true;
       const hay = [
         t.titre || "",
         t.admin || "",
+        ...(t.assignees ?? []),
         t.priorite || "",
         t.bloque || "",
         t.bloquePar || "",
@@ -242,9 +301,19 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
       ].join(" ").toLowerCase();
       return hay.includes(qn);
     });
-  }, [tasks, q, statut, admin, archFilter]);
+  }, [tasks, q, statut, adminSel, archFilter]);
 
   const archivedList = useMemo(() => tasks.filter((t) => t.archived), [tasks]);
+
+  // Fermer les popovers en RO/meeting
+  useEffect(() => {
+    if (readOnly || meetingOn) {
+      setEditingTitleFor(null);
+      setTagPickerFor(null);
+      setPeoplePickerFor(null);
+      setBlockPickerFor(null);
+    }
+  }, [readOnly, meetingOn]);
 
   /* ====== Actions ====== */
   const requestDeleteOrArchive = (taskId: string) => {
@@ -286,95 +355,70 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
   const handleSaveEdit = (updated: Task) => {
     const safeTitle = (updated.titre ?? "").slice(0, 80);
     const safeRemarks = (updated.remarques ?? "").slice(0, 250);
-    const safeBlocked = (updated.bloque ?? "").slice(0, 200);
-    const safeBlockedBy = (updated.bloquePar ?? "").slice(0, 200);
-    setTasks((prev) =>
-      prev.map((x) =>
-        x.id === updated.id
-          ? { ...x, ...updated, titre: safeTitle, remarques: safeRemarks, bloque: safeBlocked, bloquePar: safeBlockedBy }
-          : x
-      )
-    );
+
+    const tmp: Task = { ...updated, titre: safeTitle, remarques: safeRemarks };
+
+    // règle deps non terminées => statut Bloqué (sauf Terminé)
+    const depsOk = canStart(tmp, tasks);
+    if (!depsOk && tmp.statut !== "Terminé") {
+      tmp.statut = "Bloqué";
+    }
+
+    setTasks((prev) => {
+      const merged = prev.map((x) => (x.id === tmp.id ? { ...x, ...tmp } : x));
+      return syncGraph(merged, { ...prev.find((x) => x.id === tmp.id)!, ...tmp });
+    });
     setEditingTask(null);
   };
 
-  // Inline Admin
-  const startEditAdmin = (t: Task) => {
+  // ====== Admins inline (nouveau design “pastilles + menu déroulant”) ======
+  const openPeoplePicker = (t: Task) => {
     if (readOnly || meetingOn) return;
-    setEditingAdminFor(t.id);
-    setTempAdmin(t.admin || "");
-  };
-  const saveEditAdmin = () => {
-    if (!editingAdminFor) return;
-    setTasks((prev) =>
-      prev.map((x) => (x.id === editingAdminFor ? { ...x, admin: tempAdmin.trim() } : x))
-    );
-    setEditingAdminFor(null);
-    setTempAdmin("");
-  };
-  const cancelEditAdmin = () => {
-    setEditingAdminFor(null);
-    setTempAdmin("");
+    const currentAssignees = Array.isArray(t.assignees) && t.assignees.length ? [...t.assignees] : (t.admin ? [t.admin] : []);
+    setPeopleDraft(currentAssignees);
+    setAdminDraft(t.admin ?? (currentAssignees[0] ?? ""));
+    setPeopleSearch("");
+    setPeoplePickerFor(t.id);
   };
 
-  // Inline Titre
-  const startEditTitle = (t: Task) => {
-    if (readOnly || meetingOn) return;
-    setEditingTitleFor(t.id);
-    setTempTitle(t.titre || "");
-  };
-  const saveEditTitle = () => {
-    if (!editingTitleFor) return;
-    setTasks((prev) =>
-      prev.map((x) => (x.id === editingTitleFor ? { ...x, titre: (tempTitle || "").slice(0, 80) } : x))
-    );
-    setEditingTitleFor(null);
-    setTempTitle("");
-  };
-  const cancelEditTitle = () => {
-    setEditingTitleFor(null);
-    setTempTitle("");
+  const toggleDraftPerson = (name: string) => {
+    setPeopleDraft((prev) => {
+      const has = prev.includes(name);
+      const next = has ? prev.filter((n) => n !== name) : [...prev, name];
+      // si l’admin a été décoché, déplacer adminDraft si besoin
+      if (!has && !adminDraft) {
+        setAdminDraft(name);
+      }
+      if (has && adminDraft === name) {
+        setAdminDraft(next[0] ?? "");
+      }
+      return next;
+    });
   };
 
-  // Inline Bloqué (raison)
-  const startEditBlocked = (t: Task) => {
-    if (readOnly || meetingOn) return;
-    setEditingBlockedFor(t.id);
-    setTempBlocked(t.bloque || "");
-  };
-  const saveEditBlocked = () => {
-    if (!editingBlockedFor) return;
+  const savePeople = () => {
+    if (!peoplePickerFor) return;
+    const first = adminDraft || peopleDraft[0] || "";
     setTasks((prev) =>
-      prev.map((x) => (x.id === editingBlockedFor ? { ...x, bloque: (tempBlocked || "").slice(0, 200) } : x))
+      prev.map((x) =>
+        x.id === peoplePickerFor
+          ? { ...x, admin: first, assignees: [...new Set(peopleDraft.length ? peopleDraft : (first ? [first] : []))] }
+          : x
+      )
     );
-    setEditingBlockedFor(null);
-    setTempBlocked("");
+    setPeoplePickerFor(null);
+    setPeopleDraft([]);
+    setAdminDraft("");
+    setPeopleSearch("");
   };
-  const cancelEditBlocked = () => {
-    setEditingBlockedFor(null);
-    setTempBlocked("");
+  const cancelPeople = () => {
+    setPeoplePickerFor(null);
+    setPeopleDraft([]);
+    setAdminDraft("");
+    setPeopleSearch("");
   };
 
-  // Inline Bloqué par (qui/quoi)
-  const startEditBlockedBy = (t: Task) => {
-    if (readOnly || meetingOn) return;
-    setEditingBlockedByFor(t.id);
-    setTempBlockedBy(t.bloquePar || "");
-  };
-  const saveEditBlockedBy = () => {
-    if (!editingBlockedByFor) return;
-    setTasks((prev) =>
-      prev.map((x) => (x.id === editingBlockedByFor ? { ...x, bloquePar: (tempBlockedBy || "").slice(0, 200) } : x))
-    );
-    setEditingBlockedByFor(null);
-    setTempBlockedBy("");
-  };
-  const cancelEditBlockedBy = () => {
-    setEditingBlockedByFor(null);
-    setTempBlockedBy("");
-  };
-
-  // Tag picker
+  // ====== Étiquettes ======
   const openTagPicker = (t: Task) => {
     if (readOnly || meetingOn) return;
     setTagPickerFor(t.id);
@@ -396,6 +440,34 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
     setTagDraft([]);
   };
 
+  // ====== BLOQUE (sélecteur de tâches) ======
+  const openBlockPicker = (t: Task) => {
+    if (readOnly || meetingOn) return;
+    setBlockDraft([...(t.blocks ?? [])]); // ids
+    setBlockSearch("");
+    setBlockPickerFor(t.id);
+  };
+  const toggleDraftBlock = (targetId: string) => {
+    setBlockDraft((prev) => (prev.includes(targetId) ? prev.filter(id => id !== targetId) : [...prev, targetId]));
+  };
+  const saveBlocks = () => {
+    if (!blockPickerFor) return;
+    setTasks((prev) => {
+      const current = prev.find(x => x.id === blockPickerFor)!;
+      const updated: Task = { ...current, blocks: uniq(blockDraft) };
+      const merged = prev.map(x => x.id === updated.id ? updated : x);
+      return syncGraph(merged, updated); // met à jour automatiquement dependsOn
+    });
+    setBlockPickerFor(null);
+    setBlockDraft([]);
+    setBlockSearch("");
+  };
+  const cancelBlocks = () => {
+    setBlockPickerFor(null);
+    setBlockDraft([]);
+    setBlockSearch("");
+  };
+
   const wrapperClasses = [
     "page-wrap",
     "ft-wrap",
@@ -409,7 +481,6 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
      ========================= */
   return (
     <div className={wrapperClasses}>
-      {/* Badge fixe en mode réunion */}
       {meetingOn && <div className="meeting-badge" aria-live="polite">Mode réunion ON</div>}
 
       {/* ===== Toolbar ===== */}
@@ -432,7 +503,7 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
             <span className="ft-input-ico">🔎</span>
             <input
               className="ft-input"
-              placeholder="Rechercher (titre, admin, étiquettes, remarques, blocages...)"
+              placeholder="Rechercher (titre, personnes, étiquettes, remarques, blocages...)"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               disabled={meetingOn}
@@ -445,10 +516,60 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
             {STATUTS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
 
-          <select className="ft-select" value={admin} onChange={(e) => setAdmin(e.target.value as any)} disabled={meetingOn} aria-disabled={meetingOn}>
-            <option value="Tous">Tous admins</option>
-            {admins.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
+          {/* === Filtre multi-admins (toolbar) === */}
+          <div className="admin-filter">
+            <button
+              type="button"
+              className={`ft-btn ${adminsOpen ? "is-open" : ""}`}
+              onClick={() => !meetingOn && setAdminsOpen((v) => !v)}
+              disabled={meetingOn}
+              aria-expanded={adminsOpen}
+              aria-haspopup="dialog"
+              title="Filtrer par admins/assignees"
+            >
+              {adminSel.length === 0 ? "Toutes personnes" : `${adminSel.length} sélection(s)`}
+              {adminSel.length > 0 && <span className="ft-pill">{adminSel.length}</span>}
+              <span aria-hidden style={{marginLeft:6}}>▾</span>
+            </button>
+
+            {adminsOpen && (
+              <div
+                className="af-popover"
+                role="dialog"
+                aria-label="Filtre personnes"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="af-head">
+                  <strong>Personnes</strong>
+                  <div className="spacer" />
+                  <button className="ft-btn small ghost" onClick={() => setAdminSel([])}>Aucun</button>
+                  <button className="ft-btn small ghost" onClick={() => setAdminSel([...admins])}>Tous</button>
+                  <button className="ft-icon-btn" aria-label="Fermer" onClick={() => setAdminsOpen(false)}>✕</button>
+                </div>
+
+                <div className="af-list">
+                  {admins.map((a) => (
+                    <label key={a} className="af-row">
+                      <input
+                        type="checkbox"
+                        checked={adminSel.includes(a)}
+                        onChange={() => toggleAdminFilter(a)}
+                      />
+                      <span>{a}</span>
+                    </label>
+                  ))}
+                  {admins.length === 0 && <div className="ft-empty">Aucun nom détecté.</div>}
+                </div>
+
+                <div className="af-actions">
+                  <button className="ft-btn small" onClick={() => setAdminsOpen(false)}>Fermer</button>
+                  {adminSel.length > 0 && (
+                    <button className="ft-btn small ghost" onClick={() => setAdminSel([])}>Effacer</button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Filtre Archivage */}
           <select className="ft-select" value={archFilter} onChange={(e) => setArchFilter(e.target.value as any)} disabled={meetingOn} aria-disabled={meetingOn}>
@@ -477,8 +598,8 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
               <th className="col-admin">Admin</th>
               <th className="col-statut">Statut</th>
               <th className="col-priorite">Priorité</th>
-              <th className="col-bloque">Bloqué (raison)</th>
-              <th className="col-bloque-par">Bloqué par (qui/quoi)</th>
+              <th className="col-bloque">Bloque</th>
+              <th className="col-bloque-par">Bloqué par</th>
               <th className="col-etq">Étiquettes</th>
               <th className="col-remarques">Remarques</th>
               <th className="col-actions">Actions</th>
@@ -486,15 +607,31 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
           </thead>
           <tbody>
             {filtered.map((t) => {
-              const isEditingAdmin = editingAdminFor === t.id;
               const isEditingTitle = editingTitleFor === t.id;
-              const isEditingBlocked = editingBlockedFor === t.id;
-              const isEditingBlockedBy = editingBlockedByFor === t.id;
               const isTagOpen = tagPickerFor === t.id;
+              const isPeopleOpen = peoplePickerFor === t.id;
+              const isBlockOpen = blockPickerFor === t.id;
 
               const remarks = (t.remarques ?? "").toString();
               const tags = t.etiquettes ?? [];
+
+              const people = (t.assignees && t.assignees.length ? t.assignees : (t.admin ? [t.admin] : []));
+              const adminName = t.admin || people[0] || "";
               const rest = Math.max(tags.length - 3, 0);
+
+              // Choix pour “Bloque”
+              const blockChoices = tasks
+                .filter(x => !x.archived && x.id !== t.id)
+                .filter(x => (x.titre || "").toLowerCase().includes(blockSearch.trim().toLowerCase()))
+                .sort((a, b) => (a.titre || "").localeCompare(b.titre || ""));
+
+              const blocksTitles = (t.blocks ?? []).map(id => idMap[id]?.titre).filter(Boolean) as string[];
+              const dependsTitles = (t.dependsOn ?? []).map(id => idMap[id]?.titre).filter(Boolean) as string[];
+
+              // Pastilles (avatars) à afficher
+              const maxShown = 3;
+              const shown = people.slice(0, maxShown);
+              const hiddenCount = Math.max(people.length - maxShown, 0);
 
               return (
                 <tr key={t.id} aria-disabled={meetingOn}>
@@ -513,7 +650,7 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                         <button
                           className="ft-btn icon rename-btn"
                           title="Renommer"
-                          onClick={() => startEditTitle(t)}
+                          onClick={() => { if (!readOnly && !meetingOn) { setEditingTitleFor(t.id); setTempTitle(t.titre || ""); } }}
                           disabled={readOnly || meetingOn}
                           aria-disabled={readOnly || meetingOn}
                         >
@@ -529,14 +666,29 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                           placeholder="Nom de la tâche (max 80)"
                           autoFocus
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") saveEditTitle();
-                            if (e.key === "Escape") cancelEditTitle();
+                            if (e.key === "Enter") {
+                              setTasks(prev => prev.map(x => x.id === t.id ? { ...x, titre: (tempTitle || "").slice(0, 80) } : x));
+                              setEditingTitleFor(null);
+                              setTempTitle("");
+                            }
+                            if (e.key === "Escape") { setEditingTitleFor(null); setTempTitle(""); }
                           }}
                           maxLength={80}
                         />
                         <div className="inline-actions">
-                          <button className="ft-btn small" onClick={saveEditTitle}>OK</button>
-                          <button className="ft-btn ghost small" onClick={cancelEditTitle}>Annuler</button>
+                          <button
+                            className="ft-btn small"
+                            onClick={() => {
+                              setTasks(prev => prev.map(x => x.id === t.id ? { ...x, titre: (tempTitle || "").slice(0, 80) } : x));
+                              setEditingTitleFor(null);
+                              setTempTitle("");
+                            }}
+                          >
+                            OK
+                          </button>
+                          <button className="ft-btn ghost small" onClick={() => { setEditingTitleFor(null); setTempTitle(""); }}>
+                            Annuler
+                          </button>
                         </div>
                       </div>
                     )}
@@ -546,49 +698,155 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                   <td className="col-debut">{short(t.debut)}</td>
                   <td className="col-echeance">{short(t.echeance)}</td>
 
-                  {/* Admin (avatar + nom) */}
-                  <td className="col-admin">
-                    {!isEditingAdmin ? (
-                      <button
-                        className="admin-chip"
-                        onClick={() => startEditAdmin(t)}
-                        title="Modifier l'admin"
-                        disabled={readOnly || meetingOn}
-                        aria-disabled={readOnly || meetingOn}
-                      >
-                        <span className="admin-avatar" aria-hidden>
-                          {avatarUrlFor(t.admin) ? (
-                            <img
-                              src={encodeURI(avatarUrlFor(t.admin)!)}
-                              alt=""
-                              onError={(e) => {
-                                const parent = e.currentTarget.parentElement;
-                                if (parent) parent.innerHTML = `<span class="fallback">${initials(t.admin || "") || "?"}</span>`;
-                              }}
-                            />
-                          ) : (
-                            <span className="fallback">{initials(t.admin || "") || "?"}</span>
+                  {/* Admin (pastilles + popover “menu déroulant”) */}
+                  <td className="col-admin admin-cell">
+                    <div className="avatar-stack" aria-label="Équipe assignée">
+                      {/* Pastille Admin en premier */}
+                      {adminName ? (
+                        <button
+                          className="pastille-btn"
+                          title={`Admin: ${adminName}`}
+                          onClick={() => openPeoplePicker(t)}
+                          disabled={readOnly || meetingOn}
+                        >
+                          <span className={`pastille ${t.admin ? "is-admin" : ""}`}>
+                            {(() => {
+                              const url = avatarUrlFor(adminName);
+                              return url ? (
+                                // eslint-disable-next-line jsx-a11y/alt-text
+                                <img
+                                  src={encodeURI(url)}
+                                  onError={(e) => {
+                                    const parent = e.currentTarget.parentElement;
+                                    if (parent) parent.innerHTML = `<span class="fallback">${initials(adminName) || "?"}</span>`;
+                                  }}
+                                />
+                              ) : (
+                                <span className="fallback">{initials(adminName) || "?"}</span>
+                              );
+                            })()}
+                            <span className="admin-crown" aria-hidden>★</span>
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          className="pastille-btn"
+                          title="Choisir des personnes"
+                          onClick={() => openPeoplePicker(t)}
+                          disabled={readOnly || meetingOn}
+                        >
+                          <span className="pastille empty">+</span>
+                        </button>
+                      )}
+
+                      {/* Autres pastilles (jusqu’à 2) */}
+                      {shown
+                        .filter(n => n !== adminName)
+                        .map((name, i) => (
+                          <button
+                            key={`${name}-${i}`}
+                            className="pastille-btn"
+                            title={name}
+                            onClick={() => openPeoplePicker(t)}
+                            disabled={readOnly || meetingOn}
+                          >
+                            <span className="pastille">
+                              {(() => {
+                                const url = avatarUrlFor(name);
+                                return url ? (
+                                  // eslint-disable-next-line jsx-a11y/alt-text
+                                  <img
+                                    src={encodeURI(url)}
+                                    onError={(e) => {
+                                      const parent = e.currentTarget.parentElement;
+                                      if (parent) parent.innerHTML = `<span class="fallback">${initials(name) || "?"}</span>`;
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="fallback">{initials(name) || "?"}</span>
+                                );
+                              })()}
+                            </span>
+                          </button>
+                        ))}
+
+                      {/* +N */}
+                      {hiddenCount > 0 && (
+                        <button
+                          className="pastille-btn"
+                          title={`+${hiddenCount} autre(s)`}
+                          onClick={() => openPeoplePicker(t)}
+                          disabled={readOnly || meetingOn}
+                        >
+                          <span className="pastille more">+{hiddenCount}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Popover menu déroulant */}
+                    {isPeopleOpen && (
+                      <div className="pp-popover slim" role="dialog" onClick={(e) => e.stopPropagation()}>
+                        <div className="pp-head">
+                          <strong>Personnes</strong>
+                          <input
+                            className="pp-search"
+                            placeholder="Rechercher…"
+                            value={peopleSearch}
+                            onChange={(e) => setPeopleSearch(e.target.value)}
+                          />
+                          <div className="spacer" />
+                          <button className="ft-btn small ghost" onClick={() => { setPeopleDraft([]); setAdminDraft(""); }}>
+                            Aucun
+                          </button>
+                          <button className="ft-btn small ghost" onClick={() => { setPeopleDraft([...admins]); if (admins.length) setAdminDraft(admins[0]); }}>
+                            Tous
+                          </button>
+                          <button className="ft-icon-btn" aria-label="Fermer" onClick={cancelPeople}>✕</button>
+                        </div>
+
+                        <div className="pp-list">
+                          {admins
+                            .filter(a => a.toLowerCase().includes(peopleSearch.trim().toLowerCase()))
+                            .map((a) => (
+                              <label key={a} className="pp-row">
+                                <input
+                                  type="checkbox"
+                                  checked={peopleDraft.includes(a)}
+                                  onChange={() => toggleDraftPerson(a)}
+                                  aria-label={`Assigner ${a}`}
+                                />
+                                <span className="opt-avatar">
+                                  {avatarUrlFor(a) ? (
+                                    // eslint-disable-next-line jsx-a11y/alt-text
+                                    <img src={encodeURI(avatarUrlFor(a)!)} />
+                                  ) : (
+                                    <span className="fallback">{initials(a) || "?"}</span>
+                                  )}
+                                </span>
+                                <span className="opt-name">{a}</span>
+                                <span className="spacer" />
+                                <label className="opt-admin-radio" title="Définir admin">
+                                  <input
+                                    type="radio"
+                                    name={`admin-radio-${peoplePickerFor}`}
+                                    checked={adminDraft === a}
+                                    onChange={() => {
+                                      if (!peopleDraft.includes(a)) setPeopleDraft(prev => [...prev, a]);
+                                      setAdminDraft(a);
+                                    }}
+                                  />
+                                  <span className="opt-admin-label">Admin</span>
+                                </label>
+                              </label>
+                          ))}
+                          {admins.length === 0 && (
+                            <div className="ft-empty">Aucun résultat…</div>
                           )}
-                        </span>
-                        <span>{t.admin || "—"}</span>
-                      </button>
-                    ) : (
-                      <div className="admin-edit">
-                        <input
-                          className="cell-input admin-input"
-                          list="admins-list"
-                          value={tempAdmin}
-                          onChange={(e) => setTempAdmin(e.target.value)}
-                          placeholder="Nouvel admin…"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") saveEditAdmin();
-                            if (e.key === "Escape") cancelEditAdmin();
-                          }}
-                        />
-                        <div className="admin-edit-actions">
-                          <button className="ft-btn small" onClick={saveEditAdmin}>OK</button>
-                          <button className="ft-btn ghost small" onClick={cancelEditAdmin}>Annuler</button>
+                        </div>
+
+                        <div className="pp-actions">
+                          <button className="ft-btn small" onClick={savePeople}>Enregistrer</button>
+                          <button className="ft-btn ghost small" onClick={cancelPeople}>Annuler</button>
                         </div>
                       </div>
                     )}
@@ -597,6 +855,9 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                   {/* Statut */}
                   <td className="col-statut">
                     <span className={`badge badge-${slug(t.statut)}`}>{t.statut}</span>
+                    {!canStart(t, tasks) && t.statut !== "Terminé" && (
+                      <span className="dep-warn" title="Dépendances non terminées"> ⛓️</span>
+                    )}
                   </td>
 
                   {/* Priorité */}
@@ -606,78 +867,60 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                     ) : "—"}
                   </td>
 
-                  {/* Bloqué (raison) */}
+                  {/* Bloque (sélecteur) */}
                   <td className="col-bloque">
-                    {!isEditingBlocked ? (
-                      <div className="wrap bloque-par-cell">
-                        <span title={t.bloque?.trim() || ""}>{t.bloque?.trim() || "—"}</span>
-                        <button
-                          className="ft-btn icon"
-                          title="Modifier"
-                          onClick={() => startEditBlocked(t)}
-                          disabled={readOnly || meetingOn}
-                          aria-disabled={readOnly || meetingOn}
-                        >
-                          ✎
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="blockedby-editor">
-                        <input
-                          className="cell-input"
-                          value={tempBlocked}
-                          onChange={(e) => setTempBlocked(e.target.value)}
-                          placeholder="Ex: En attente de specs / budget / validation..."
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") saveEditBlocked();
-                            if (e.key === "Escape") cancelEditBlocked();
-                          }}
-                          maxLength={200}
-                        />
-                        <div className="inline-actions">
-                          <button className="ft-btn small" onClick={saveEditBlocked}>OK</button>
-                          <button className="ft-btn ghost small" onClick={cancelEditBlocked}>Annuler</button>
+                    <button
+                      className="ft-btn"
+                      onClick={() => openBlockPicker(t)}
+                      disabled={readOnly || meetingOn}
+                      aria-disabled={readOnly || meetingOn}
+                      title="Choisir quelles tâches sont bloquées par celle-ci"
+                    >
+                      {blocksTitles.length
+                        ? blocksTitles.slice(0, 2).join(", ") + (blocksTitles.length > 2 ? ` +${blocksTitles.length - 2}` : "")
+                        : "—"}
+                    </button>
+
+                    {isBlockOpen && (
+                      <div className="pp-popover" role="dialog" onClick={(e) => e.stopPropagation()}>
+                        <div className="pp-head">
+                          <strong>Bloque</strong>
+                          <input
+                            className="pp-search"
+                            placeholder="Rechercher une tâche…"
+                            value={blockSearch}
+                            onChange={(e) => setBlockSearch(e.target.value)}
+                          />
+                          <div className="spacer" />
+                          <button className="ft-icon-btn" aria-label="Fermer" onClick={cancelBlocks}>✕</button>
+                        </div>
+
+                        <div className="pp-list">
+                          {blockChoices.map((opt) => (
+                            <label key={opt.id} className="pp-row">
+                              <input
+                                type="checkbox"
+                                checked={blockDraft.includes(opt.id)}
+                                onChange={() => toggleDraftBlock(opt.id)}
+                              />
+                              <span className="opt-name">{opt.titre || "—"}</span>
+                              <span style={{ marginLeft: "auto" }} className="badge">{opt.statut}</span>
+                            </label>
+                          ))}
+                          {blockChoices.length === 0 && <div className="ft-empty">Aucun résultat…</div>}
+                        </div>
+
+                        <div className="pp-actions">
+                          <button className="ft-btn small" onClick={saveBlocks}>Enregistrer</button>
+                          <button className="ft-btn ghost small" onClick={cancelBlocks}>Annuler</button>
                         </div>
                       </div>
                     )}
                   </td>
 
-                  {/* Bloqué par (qui/quoi) */}
-                  <td className="col-bloque-par">
-                    {!isEditingBlockedBy ? (
-                      <div className="wrap bloque-par-cell">
-                        <span title={t.bloquePar?.trim() || ""}>{t.bloquePar?.trim() || "—"}</span>
-                        <button
-                          className="ft-btn icon"
-                          title="Modifier"
-                          onClick={() => startEditBlockedBy(t)}
-                          disabled={readOnly || meetingOn}
-                          aria-disabled={readOnly || meetingOn}
-                        >
-                          ✎
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="blockedby-editor">
-                        <input
-                          className="cell-input"
-                          value={tempBlockedBy}
-                          onChange={(e) => setTempBlockedBy(e.target.value)}
-                          placeholder="Ex: Maquettes (Léo) / API (Team Back)"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") saveEditBlockedBy();
-                            if (e.key === "Escape") cancelEditBlockedBy();
-                          }}
-                          maxLength={200}
-                        />
-                        <div className="inline-actions">
-                          <button className="ft-btn small" onClick={saveEditBlockedBy}>OK</button>
-                          <button className="ft-btn ghost small" onClick={cancelEditBlockedBy}>Annuler</button>
-                        </div>
-                      </div>
-                    )}
+                  {/* Bloqué par (lecture seule, à partir de dependsOn) */}
+                  <td className="col-bloque-par" title={dependsTitles.join(", ") || ""}>
+                    {dependsTitles.length ? dependsTitles.join(", ") : "—"}
                   </td>
 
                   {/* Étiquettes */}
@@ -729,7 +972,7 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                     {remarks.length > 250 ? remarks.slice(0, 250) + "…" : remarks || "—"}
                   </td>
 
-                  {/* Actions (différenciées selon archived) */}
+                  {/* Actions */}
                   <td className="col-actions">
                     <div className="ft-actions">
                       {!t.archived ? (
@@ -793,9 +1036,16 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
       {/* ===== Modale Édition ===== */}
       {editingTask && (
         <EditTaskModal
+          open={true}
           task={editingTask}
-          onClose={() => setEditingTask(null)}
+          admins={admins}
+          tasks={tasks}
           onSave={handleSaveEdit}
+          onClose={() => setEditingTask(null)}
+          onAskArchiveDelete={(t) => {
+            setEditingTask(null);
+            setConfirm({ open: true, taskId: t.id, label: t.titre ?? "cette tâche" });
+          }}
         />
       )}
 
