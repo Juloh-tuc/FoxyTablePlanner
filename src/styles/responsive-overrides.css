@@ -1,0 +1,104 @@
+/* src/styles/responsive-overrides.css
+   -> ADD-ON RESPONSIVE (aucune modif des tokens/bases)
+   -> À importer APRÈS tes CSS existants
+*/
+
+/* ====== MONTH: lisible de mobile à très grand ====== */
+
+/* Petits écrans : autoriser le scroll horizontal du mois */
+@media (max-width: 760px){
+  .month-wrap{
+    overflow-x: auto;              /* était hidden -> on autorise le scroll pour 7 colonnes */
+    -webkit-overflow-scrolling: touch;
+  }
+  .month-grid,
+  .month-grid--head{
+    min-width: 640px;              /* largeur plancher pour garder 7 colonnes lisibles */
+  }
+
+  .day-cell{
+    min-height: clamp(96px, 24vw, 140px);
+    padding-bottom: 40px;
+  }
+  .day-num{ font-size: 0.75rem; }
+  .people-stack{ max-height: 120px; }
+}
+
+/* Très petits écrans (<=360px) : un peu plus compact */
+@media (max-width: 360px){
+  .month-grid,
+  .month-grid--head{ min-width: 680px; }  /* on force un peu plus large => scroll confortable */
+  .day-cell{ min-height: 100px; }
+}
+
+/* Grands/énormes écrans : augmenter légèrement la hiérarchie visuelle */
+@media (min-width: 1600px){
+  .month-wrap{ max-width: 1400px; }
+  .title{ font-size: clamp(1.6rem, 1.1rem + 1vw, 2.25rem); }
+  .day-cell{ min-height: clamp(140px, 12vw, 200px); }
+}
+
+/* ====== TABLE: scroll horizontal “quand nécessaire” ====== */
+
+/* Par défaut tu avais overflow-x: visible; -> on ne touche pas.
+   On force le scroll seulement sous un certain seuil. */
+@media (max-width: 1280px){
+  .table-wrap{
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table{
+    min-width: 1100px;   /* garde des colonnes lisibles sans casser la mise en page */
+  }
+}
+@media (max-width: 900px){
+  .table{ min-width: 980px; }
+}
+
+/* Ajuste un peu la densité des cellules sur mobile */
+@media (max-width: 760px){
+  .table th, .table td{ padding: 0.6rem 0.7rem; font-size: 0.93rem; }
+  .ft-actions{ row-gap: 6px; }
+}
+
+/* ====== AGILE: rien à casser, on améliore juste le confort mid-range ====== */
+
+/* Entre mobile et desktop, on autorise un léger débordement horizontal si 4 colonnes passent juste. */
+@media (min-width: 980px) and (max-width: 1180px){
+  .kan-board{
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kan-col{ min-width: 19rem; }
+}
+
+/* ====== MODALES & POPOVERS: sécurité viewport ====== */
+@media (max-width: 640px){
+  .ft-modal, .etm-panel, .tdm-panel{
+    width: min(92vw, 900px);
+    max-height: 90vh;
+  }
+  .pp-popover, .pp-panel, .tag-popover, .af-popover{
+    inset-inline: 0;      /* évite de sortir de l’écran */
+    width: min(92vw, 480px);
+  }
+}
+
+/* ====== UTILITAIRE : Mode projecteur (optionnel) ======
+   Ajoute <body class="projector"> pour activer */
+body.projector{
+  /* boost lisibilité sans changer tes tokens */
+  --proj-font-scale: 1.12;
+}
+body.projector .month-wrap,
+body.projector .ft-wrap,
+body.projector .agile{
+  font-size: calc(1rem * var(--proj-font-scale));
+}
+body.projector .table{ font-size: 1.05rem; }
+body.projector .day-cell{ min-height: 160px; }
+body.projector .table thead th{ letter-spacing: .01em; }
+
+/* Un peu plus de contraste en projecteur */
+body.projector .day-cell.today{ box-shadow: 0 0 0 4px rgba(167,139,250,.24); }
+body.projector .person-chip{ box-shadow: 0 2px 10px rgba(0,0,0,.08); }

@@ -1,0 +1,50 @@
+/* AdminCell – popover scrollable et isolé */
+.ac-cell { position: relative; }
+
+.ac-trigger { white-space: nowrap; }
+
+.ac-popover {
+  position: fixed;
+  background: var(--ft-surface, #fff);
+  border: 1px solid var(--ft-brd, #e5e7eb);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.12);
+  display: flex;
+  flex-direction: column;
+  z-index: 9999;           /* au-dessus de la table; laisse tes modales au-dessus si besoin */
+  width: 320px;
+  max-height: 360px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ac-head {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .5rem .75rem; border-bottom: 1px solid var(--ft-brd, #e5e7eb);
+}
+
+.ac-search { flex: 1 1 auto; min-width: 120px; }
+
+.ac-list {
+  max-height: 260px;
+  overflow: auto;                 /* zone qui SCROLLE */
+  overscroll-behavior: contain;   /* empêche le scroll de « sortir » vers la page */
+  padding: .25rem .5rem;
+}
+
+.ac-row {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .375rem .25rem; border-radius: 8px;
+}
+
+.ac-row:hover { background: rgba(0,0,0,.03); }
+
+.ac-admin-radio { display: inline-flex; align-items: center; gap: .35rem; }
+.ac-admin-label { font-size: .85rem; opacity: .85; }
+
+.ac-actions {
+  display: flex; gap: .5rem; justify-content: flex-end;
+  padding: .5rem .75rem; border-top: 1px solid var(--ft-brd, #e5e7eb);
+}
+
+/* Optionnel: évite le scroll chaining de la table elle-même */
+.table-wrap { overscroll-behavior: none; }

@@ -6,7 +6,8 @@ type Ctx = {
   loading: boolean;
   create: (partial?: Partial<Task>) => Task | null;
   patch: (id: string, partial: Partial<Task>) => void;
-  remove: (id: string) => void;
+  archive: (id: string, reason?: string) => void;
+  restore: (id: string) => void;
   resetFromSeed: () => Promise<void>;
   exportJson: () => void;
   importJson: (file: File) => Promise<void>;
@@ -36,7 +37,14 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     if (raw) {
       const data = safeParse(raw) as Task[] | null;
       if (Array.isArray(data)) {
-        setTasks(data); setLoading(false);
+        // Migration : assure les champs archivage
+        setTasks(data.map(t => ({
+          ...t,
+          archived: t.archived ?? false,
+          archivedAt: t.archivedAt ?? null,
+          archivedReason: t.archivedReason ?? null
+        })));
+        setLoading(false);
         return;
       }
     }
@@ -45,8 +53,14 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       .then(r => r.ok ? r.json() : [])
       .then((data: Task[]) => {
         if (!Array.isArray(data)) data = [];
-        setTasks(data);
-        localStorage.setItem(LS_KEY, JSON.stringify(data));
+        const withArchive = data.map(t => ({
+          ...t,
+          archived: false,
+          archivedAt: null,
+          archivedReason: null
+        }));
+        setTasks(withArchive);
+        localStorage.setItem(LS_KEY, JSON.stringify(withArchive));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -71,7 +85,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       avancement: partial.avancement ?? 0,
       bloquePar: partial.bloquePar ?? "",
       remarques: partial.remarques ?? "",
-      etiquettes: partial.etiquettes ?? []
+      etiquettes: partial.etiquettes ?? [],
+      assignees: partial.assignees ?? [],
+      archived: false,
+      archivedAt: null,
+      archivedReason: null
     };
     setTasks(prev => [...prev, t]);
     return t;
@@ -80,15 +98,30 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const patch: Ctx["patch"] = (id, partial) =>
     setTasks(prev => prev.map(r => (r.id === id ? { ...r, ...partial } : r)));
 
-  const remove: Ctx["remove"] = (id) =>
-    setTasks(prev => prev.filter(r => r.id !== id));
+  /** Archiver au lieu de supprimer */
+  const archive: Ctx["archive"] = (id, reason) =>
+    setTasks(prev => prev.map(r => r.id === id
+      ? { ...r, archived: true, archivedAt: new Date().toISOString(), archivedReason: reason ?? null }
+      : r));
+
+  /** Restaurer une tâche archivée */
+  const restore: Ctx["restore"] = (id) =>
+    setTasks(prev => prev.map(r => r.id === id
+      ? { ...r, archived: false, archivedAt: null, archivedReason: null }
+      : r));
 
   const resetFromSeed: Ctx["resetFromSeed"] = async () => {
     setLoading(true);
     try {
       const data = await fetch(SEED_URL).then(r => r.ok ? r.json() : []);
-      setTasks(Array.isArray(data) ? data : []);
-      localStorage.setItem(LS_KEY, JSON.stringify(Array.isArray(data) ? data : []));
+      const withArchive = (Array.isArray(data) ? data : []).map((t: Task) => ({
+        ...t,
+        archived: false,
+        archivedAt: null,
+        archivedReason: null
+      }));
+      setTasks(withArchive);
+      localStorage.setItem(LS_KEY, JSON.stringify(withArchive));
     } finally {
       setLoading(false);
     }
@@ -107,12 +140,18 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     const txt = await file.text();
     const data = safeParse(txt);
     if (!Array.isArray(data)) throw new Error("Fichier JSON invalide");
-    setTasks(data);
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
+    const withArchive = data.map((t: Task) => ({
+      ...t,
+      archived: t.archived ?? false,
+      archivedAt: t.archivedAt ?? null,
+      archivedReason: t.archivedReason ?? null
+    }));
+    setTasks(withArchive);
+    localStorage.setItem(LS_KEY, JSON.stringify(withArchive));
   };
 
   const value = useMemo<Ctx>(() => ({
-    tasks, loading, create, patch, remove, resetFromSeed, exportJson, importJson
+    tasks, loading, create, patch, archive, restore, resetFromSeed, exportJson, importJson
   }), [tasks, loading]);
 
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>;

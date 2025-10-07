@@ -1,0 +1,57 @@
+/* src/styles/add-task-modal.css */
+
+/* Forme générale du formulaire dans la modale */
+.ft-form {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.ft-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ft-label {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--ft-text, #0f172a);
+}
+
+/* Grilles */
+.ft-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.inner-dates {
+  gap: 8px;
+}
+
+/* Petite rangée (input + bouton) */
+.ft-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Picker d’étiquettes (réutilise .tag-option globale pour la pilule) */
+.tags-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Optionnel: améliore un poil l’alignement du checkbox */
+.tags-picker .tag-option input {
+  transform: translateY(1px);
+}
+
+/* Responsive */
+@media (max-width: 720px) {
+  .ft-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}

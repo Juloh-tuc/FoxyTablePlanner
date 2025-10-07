@@ -1,43 +1,60 @@
 /* ================================
-   planner-agile.css — Kanban Agile
+   planner-agile.css — Kanban Agile (FoxyTable)
+   Couleurs : Bleu minuit (#191970) + Accent orange (#E5813E)
    ================================ */
 
+/* ---------- Tokens locaux ---------- */
 :root{
+  /* Layout */
   --wrap-max: 87.5rem;
   --gutter: 1rem;
 
+  /* Neutres */
   --border: #e5e7eb;
   --text: #111827;
   --muted: #6b7280;
   --surface: #ffffff;
   --surface-2: #fafafa;
+
   --shadow-sm: 0 1px 2px rgba(0,0,0,.06);
   --shadow:    0 10px 24px rgba(0,0,0,.08);
 
+  /* Statuts */
   --done-bg:    #ecfdf5; --done-brd: #34d399; --done-txt: #065f46;
   --prog-bg:    #fefce8; --prog-brd: #facc15; --prog-txt: #713f12;
   --block-bg:   #fef2f2; --block-brd:#fca5a5; --block-txt:#7f1d1d;
   --todo-bg:    #eff6ff; --todo-brd: #93c5fd; --todo-txt: #1e3a8a;
 
-  --brand: #7c3aed;
-  --ring: #a78bfa33;
+  /* === FoxyTable === */
+  --ft-brand-main: #191970;              /* Bleu minuit */
+  --ft-brand-main-rgb: 25,25,112;
+  --ft-accent: #E5813E;                  /* Orange accent */
+  --ft-accent-rgb: 229,129,62;
 
-  /* Hauteur de base pour dimensionner les colonnes (3–4 cartes au repos) */
-  --kan-gap: 0.625rem;      /* même gap que la liste */
-  --kan-card-min: 5.25rem;  /* hauteur visuelle mini d’une carte */
+  /* Aliases (remplacent l’ancien violet) */
+  --brand: var(--ft-brand-main);
+  --ring: rgba(var(--ft-brand-main-rgb), .28);
+
+  /* Kanban spacing / heights */
+  --kan-gap: 0.625rem;
+  --kan-card-min: 5.25rem;
+
+  /* Hauteurs par défaut (pensées pour écrans moyens) */
+  --cards-gap: 10px;
+  --card-height: clamp(120px, 19vh, 170px);
+
+  /* Notes (post-it) */
+  --note-brd: #e5e7eb;
+  --note-text: #0f172a;
+  --note-muted:#64748b;
+  --note-shadow: 0 4px 14px rgba(0,0,0,.06);
+  --sticky-yellow:#fff7d6;
+  --sticky-pink:  #ffe3ef;
+  --sticky-green: #dff7ed;
+  --sticky-blue:  #e7f0ff;
 }
 
-/* ===== Toolbar (on réutilise .ft-toolbar de la table) ===== */
-.agile.meeting-on .ft-toolbar{
-  background: linear-gradient(90deg, #ede9fe, #eef2ff);
-  border: 1px solid #ddd6fe;
-  color: #1f2937;
-  border-radius: 12px;
-  padding: 10px;
-}
-
-/* ===== Layout ===== */
-.agile{ display:block; }
+/* ---------- Full bleed container ---------- */
 .ft-fullbleed{
   width: 100vw;
   margin-left: calc(50% - 50vw);
@@ -46,36 +63,68 @@
   padding-right: max(16px, calc((100vw - 1700px) / 2));
 }
 
-/* ===== Board ===== */
-.kan-board{
-  display:grid; grid-template-columns: 1fr; gap:0.75rem; margin-top:10px;
+/* ---------- Page wrapper ---------- */
+.agile-wrap{
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
-@media (min-width:980px){
+
+/* Toolbar en mode réunion → teinte bleue FoxyTable */
+.agile-wrap.meeting-on .ft-toolbar{
+  background: linear-gradient(
+    90deg,
+    rgba(var(--ft-brand-main-rgb), .10),
+    rgba(var(--ft-brand-main-rgb), .05)
+  );
+  border: 1px solid rgba(var(--ft-brand-main-rgb), .25);
+  color: #1f2937;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+/* =======================
+   Board & Colonnes
+   ======================= */
+.kan-board{
+  flex: 1 1 auto; min-height: 0;
+  display:grid;
+  grid-template-columns: 1fr;
+  gap:0.75rem;
+  margin-top:10px;
+}
+@media (min-width: 768px){
+  .kan-board{ grid-template-columns: repeat(2, 1fr); gap:0.875rem; }
+}
+@media (min-width: 980px){
   .kan-board{ grid-template-columns: repeat(4, 1fr); gap:0.875rem; }
 }
-@media (min-width:1280px){
+@media (min-width: 1280px){
   .kan-board{ grid-template-columns: repeat(4, minmax(20rem, 1fr)); gap:1.125rem; }
+}
+@media (min-width: 1600px){
+  .kan-board{ gap:1.25rem; }
 }
 
 .kan-col{
-  border:1px solid var(--border);
-  background:var(--surface);
-  border-radius:1rem;
-  overflow: visible;
-  box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; min-height: 0;
+  border:1px solid var(--border); background:var(--surface);
+  border-radius:1rem; overflow: visible; box-shadow: var(--shadow-sm);
 }
 
 .kan-col__title{
-  font-weight:800; padding:0.625rem 0.75rem; background:var(--surface-2);
+  position: relative; z-index: 1; font-weight:800;
+  padding:0.625rem 0.75rem; background:var(--surface-2);
   border-bottom:1px solid var(--border);
   display:flex; align-items:center; justify-content:space-between;
+  border-top-left-radius: 1rem; border-top-right-radius: 1rem;
 }
 .kan-col__title .count{
   font-weight:800; padding:0.125rem 0.5rem; border-radius:999px;
   border:1px solid var(--border); background:#fff; font-variant-numeric: tabular-nums;
 }
 
-/* En-têtes colorés par statut */
+/* En-têtes colorés par statut (ruban latéral) */
 .kan-col__title.is-done{
   background: linear-gradient(90deg, rgba(52,211,153,.18), transparent 40%);
   box-shadow: inset 4px 0 0 0 var(--done-brd);
@@ -93,47 +142,59 @@
   box-shadow: inset 4px 0 0 0 var(--todo-brd);
 }
 
-/* Liste des cartes — hauteur mini pensée pour 3–4 cartes, et s’agrandit ensuite */
+/* ================================
+   Liste des cartes — SCROLLABLE
+   ================================ */
+.kan-cards{
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  block-size: calc(3 * var(--card-height) + 2 * var(--cards-gap));
+  padding: 10px; display: grid; gap: var(--cards-gap);
+}
+
+/* Scrollbars oranges (zones clés) */
+:where(.kan-cards, .notes-grid){
+  scrollbar-color: var(--ft-accent) #fff7ef;   /* Firefox */
+  scrollbar-width: thin;
+}
+:where(.kan-cards, .notes-grid)::-webkit-scrollbar{ height:10px; width:10px; }
+:where(.kan-cards, .notes-grid)::-webkit-scrollbar-thumb{
+  background: var(--ft-accent); border-radius: 999px; border: 2px solid #fff;
+}
+:where(.kan-cards, .notes-grid)::-webkit-scrollbar-track{
+  background: #fff7ef; border-radius: 999px;
+}
+
+/* Compat (ancienne classe) */
 .kan-col__list{
   padding:0.625rem;
   display:flex; flex-direction:column; gap:var(--kan-gap);
-  /* 4 cartes * min-height + 3 gaps + un petit rab */
-  min-height: calc(4 * var(--kan-card-min) + 3 * var(--kan-gap) + 0.5rem);
-  overflow: visible;
-}
-@media (min-width:980px){
-  :root{ --kan-card-min: 5.75rem; }
-  .kan-col__list{
-    min-height: calc(4 * var(--kan-card-min) + 3 * var(--kan-gap) + 0.75rem);
-  }
-}
-@media (min-width:1280px){
-  :root{ --kan-card-min: 6.25rem; }
-  .kan-col__list{
-    min-height: calc(4 * var(--kan-card-min) + 3 * var(--kan-gap) + 1rem);
-  }
 }
 
-/* ===== Cartes ===== */
+/* =======================
+   Carte
+   ======================= */
 .kan-card{
-  border:1px solid var(--border);
-  background:#fff;
-  border-radius:0.75rem;
-  padding:0.75rem;
+  border:1px solid var(--border); background:#fff;
+  border-radius:0.75rem; padding:0.75rem;
   box-shadow: var(--shadow-sm);
   transition: box-shadow .12s ease, transform .12s ease;
-  min-height: var(--kan-card-min); /* socle visuel sans figer la hauteur */
+  min-height: var(--kan-card-min);
+  height: var(--card-height);
+  overflow: hidden; display: flex; flex-direction: column;
 }
 .kan-card:hover{ transform: translateY(-1px); box-shadow: var(--shadow); }
-.kan-card.is-archived{ opacity:.6; filter: grayscale(.12); }
+.kan-card.is-archived{ opacity:.6; filter: grayscale(.12); cursor: default; }
+
 .kan-card__top{ display:flex; align-items:center; gap:0.5rem; justify-content:space-between; }
 .kan-card__titlewrap{ display:flex; align-items:center; gap:.5rem; min-width:0; }
 .kan-card__title{
   font-weight:800; color:var(--text);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-clamp: 2;
 }
 .kan-card__actions{ display:flex; gap:0.375rem; }
 
+/* Avatars + stack */
+.avatar-stack{ display:inline-flex; align-items:center; gap:6px; }
 .admin-avatar{
   width:28px; height:28px; border-radius:999px; overflow:hidden;
   border:1px solid var(--border); display:inline-grid; place-items:center; background:#fff;
@@ -141,6 +202,24 @@
 .admin-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
 .admin-avatar .fallback{ font-size:.8rem; font-weight:800; color:#334155; }
 
+/* Bouton "+N" supplémentaire */
+.more-badge{
+  border: 1px solid var(--border);
+  background:#fff; color:#374151; font-weight:800; font-size:.8rem;
+  border-radius:999px; height:24px; padding:0 8px; cursor:pointer;
+}
+.more-badge:hover{ background:#f9fafb; }
+
+/* Popover personnes */
+.people-pop{
+  position:absolute; margin-top:6px; padding:8px;
+  background:#fff; border:1px solid var(--border); border-radius:10px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.12); z-index:10; min-width:200px;
+}
+.people-row{ display:flex; align-items:center; gap:8px; padding:6px 4px; }
+.people-row + .people-row{ border-top:1px dashed #eef2f7; }
+
+/* Meta */
 .kan-card__meta{ display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-top:0.25rem; }
 .badge-prio{
   display:inline-flex; align-items:center; gap:0.375rem; padding:0.25rem 0.625rem;
@@ -167,84 +246,224 @@
   border:1px solid var(--border); border-radius:999px; font-size:.8rem; color:#334155; background:#fff;
 }
 
-/* Texte court / remarques */
+/* Zones texte compactes + troncature multi-lignes */
 .kan-card__quick{ margin:.25rem 0 0; color:#374151; font-size:.95rem; }
 .kan-card__notes{ color:#6b7280; font-size:.9rem; }
-.one-line-ellipsis{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kan-card__quick,
+.kan-card__notes{
+  flex: 1 1 auto; min-height: 0; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical;
+}
 
-/* Tags / assignees (chips réutilisables) */
+/* Tags */
 .tag{
   display:inline-flex; align-items:center; gap:0.375rem;
   padding:0.25rem 0.625rem; border-radius:999px; font-size:.85rem; font-weight:700;
   background:#EEF2FF; border:1px solid var(--border); color:#1e293b;
 }
 
-/* ===== Boutons (compat) ===== */
+/* =======================
+   Boutons locaux (.btn)
+   ======================= */
 .btn{
   padding:0.5rem 0.75rem; border-radius:0.625rem; background:#fff; cursor:pointer; border:1px solid var(--border);
   transition: box-shadow .12s ease, transform .12s ease, background .12s ease, border-color .12s ease;
 }
 .btn:hover{ box-shadow: var(--shadow-sm); transform: translateY(-1px); }
-.btn.primary{ background:#7C3AED; color:#fff; border-color:#7C3AED; }
-.btn.icon{ padding:0.375rem 0.5rem; }
-.btn.danger { background:#fee2e2; border-color:#fecaca; color:#7a1c1c; }
-.btn.danger:hover{ background:#fff1f2; }
-.btn:not(.primary):hover{ background:#fff; }
+.btn:focus-visible{ outline:0; box-shadow:0 0 0 3px var(--ring); border-color: rgba(var(--ft-brand-main-rgb), .45); }
+.btn.icon{ padding:0.375rem 0.5rem; width:36px; height:36px; display:inline-grid; place-items:center; }
 
-/* ===== Mode réunion (thème clair mauve + disable visuel) ===== */
-.agile.meeting-on .kan-col{ background:#f7f8fb; border-color:#e2e8f0; }
-.agile.meeting-on .kan-col__title{ background:#eef2f7; }
-.agile.meeting-on .kan-card{ background:#f9fafb; }
-.agile.meeting-on .kan-card:hover{ transform:none; box-shadow: var(--shadow-sm); }
-
-.agile.meeting-on .btn{ cursor:not-allowed; opacity:.6; box-shadow:none; }
-.agile.meeting-on .kan-card[draggable="true"]{ cursor:grab; } /* pointer cohérent */
-
-/* ======= Post-it / Notes de réunion ======= */
-.notes-section{ margin-top: 1.25rem; }
-.notes-title{ font-weight:800; margin: 0 0 .5rem .25rem; }
-
-.notes-wrap{
-  border:1px solid var(--border); border-radius:12px; background:#fff; padding:12px;
+/* Primaire = BLEU FoxyTable */
+.btn.primary{
+  background: var(--brand);
+  color:#fff;
+  border-color: var(--brand);
+  box-shadow: 0 6px 16px rgba(var(--ft-brand-main-rgb), .15);
 }
-.notes-toolbar{
-  display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap;
+.btn.primary:hover{ filter: brightness(1.06); transform: translateY(-1px); }
+
+/* Danger → orange outline (archive douce) */
+.btn.danger{
+  background:#fff;
+  border-color: rgba(var(--ft-accent-rgb), .55);
+  color: var(--ft-accent);
 }
-.notes-grid{
-  display:grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap:12px;
-}
-@media (min-width: 980px){
-  .notes-grid{ grid-template-columns: repeat(4, minmax(220px, 1fr)); }
+.btn.danger:hover{
+  background: rgba(var(--ft-accent-rgb), .08);
 }
 
-.sticky{
-  border-radius: 10px;
-  padding: 10px;
-  min-height: 160px;
-  display:flex; flex-direction:column; gap:8px;
-  box-shadow: 0 6px 18px rgba(0,0,0,.08);
-  border: 1px solid rgba(0,0,0,.08);
-}
-.sticky.yellow{ background: #FEF9C3; }
-.sticky.pink{   background: #FCE7F3; }
-.sticky.green{  background: #D1FAE5; }
-.sticky.blue{   background: #DBEAFE; }
+/* =======================
+   Mode réunion
+   ======================= */
+.agile-wrap.meeting-on .kan-col{ background:#f7f8fb; border-color:#e2e8f0; }
+.agile-wrap.meeting-on .kan-col__title{ background:#eef2f7; }
+.agile-wrap.meeting-on .kan-card{ background:#f9fafb; }
+.agile-wrap.meeting-on .kan-card:hover{ transform:none; box-shadow: var(--shadow-sm); }
+.agile-wrap.meeting-on .btn{ cursor:not-allowed; opacity:.6; box-shadow:none; }
+.agile-wrap.meeting-on .kan-card[draggable="true"]{ cursor:grab; }
 
-.sticky-head{ display:flex; align-items:center; gap:8px; justify-content:space-between; }
-.sticky textarea{
-  width:100%; min-height: 90px; resize: vertical;
-  background: transparent; border:1px dashed rgba(0,0,0,.15); border-radius: 8px; padding:8px;
-  font: inherit; color:#111827; outline: none;
-}
-.sticky textarea:focus{ border-style: solid; box-shadow: 0 0 0 3px rgba(124,58,237,.12); }
-
-.sticky .nt-inline.small{ font-size: .85rem; color:#374151; }
-.sticky-tags{ margin-top:auto; }
-.sticky .cell-input{
-  width:100%;
-  padding:0.35rem 0.5rem;
-  border-radius:0.5rem; border:1px solid rgba(0,0,0,.12); background:#fff; font:inherit;
+/* =======================
+   État vide
+   ======================= */
+.ag-empty{
+  color:#6b7280; text-align:center; padding: 12px 4px;
 }
 
-.nt-inline{ display:inline-flex; align-items:center; gap:6px; }
-.nt-empty{ text-align:center; color:#6b7280; padding:16px; }
+/* =====================================================
+   Notes / Post-it
+   ===================================================== */
+.notes-section{ margin-top:14px; }
+.notes-title{ font-weight:800; color:#374151; margin-bottom:6px; }
+
+.notes-wrap {
+  border: 1px solid #e5e7eb; border-radius: 12px; background: #fff;
+  padding: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+/* Toolbar + filtres */
+.notes-toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+.notes-toolbar .left { display:flex; align-items:center; gap:10px; }
+.notes-toolbar .right { display:flex; align-items:center; gap:8px; }
+.nt-inline { display:inline-flex; align-items:center; gap:6px; }
+.nt-inline.small { font-size:.9rem; }
+.nt-input, .nt-select, .nt-btn {
+  border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:8px 10px; font:inherit;
+}
+.nt-btn { cursor:pointer; }
+.nt-btn:disabled { opacity:.5; cursor:not-allowed; }
+
+/* Grille scrollable interne */
+.notes-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap:10px;
+  max-height: 56vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+/* Carte post-it */
+.sticky {
+  border:1px solid #e5e7eb; border-radius:12px; padding:10px;
+  background:#fff; display:flex; flex-direction:column; gap:8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05);
+}
+.sticky.is-archived { opacity:.85; background:#fafafa; }
+
+/* Palette post-it pastel lisible */
+.sticky.yellow { background:#FFF6A9; border-color:#E6DC7D; }
+.sticky.pink   { background:#F8C8DC; border-color:#E8A9C4; }
+.sticky.green  { background:#C7E9C0; border-color:#A9D9A4; }
+.sticky.blue   { background:#CDE8F6; border-color:#A9D3EB; }
+.sticky.lavender { background:#D9C8F2; border-color:#BFAEE0; }
+.sticky.peach    { background:#FFD9B3; border-color:#F2BE8B; }
+
+.sticky, .sticky .sticky-text, .sticky .sticky-title { color:#111827; }
+
+/* En-tête post-it */
+.sticky-head { display:flex; align-items:center; justify-content:space-between; gap:8px; background: transparent !important; }
+.sticky-actions { display:flex; gap:6px; background: transparent !important; }
+
+/* Boutons post-it */
+.sticky .nt-btn {
+  background: rgba(255,255,255,.14);
+  border-color: rgba(0,0,0,.15);
+  color: #0f172a;
+}
+.sticky .nt-btn:hover { background: rgba(255,255,255,.24); }
+.sticky .nt-btn.nt-archive,
+.sticky .nt-btn.nt-restore {
+  background: rgba(255,255,255,.14);
+  border-color: rgba(0,0,0,.15);
+}
+
+/* Champs post-it */
+.sticky-title {
+  width:100%; padding:8px 10px; border:1px solid rgba(0,0,0,.08); border-radius:10px;
+  background:#fff; font-weight:700;
+}
+.sticky-text {
+  width:100%; padding:8px 10px; border:1px solid rgba(0,0,0,.08); border-radius:10px;
+  background:#fff; resize:vertical; max-height: 3.2rem; overflow: auto;
+}
+
+/* Meta */
+.sticky-meta { display:flex; align-items:center; gap:8px; color:#6b7280; font-size:.85rem; }
+.nt-badge { border:1px solid #e5e7eb; border-radius:999px; padding:2px 8px; font-size:.75rem; }
+.nt-badge-archived { background:#fff1f2; border-color:#fecaca; color:#7a1c1c; }
+
+/* Vide */
+.nt-empty{ color:#6b7280; text-align:center; padding:12px 4px; }
+
+/* =======================
+   Accessibilité & prefs
+   ======================= */
+@media (prefers-reduced-motion: reduce){
+  .kan-card, .btn, .sticky{ transition: none !important; }
+}
+@media (prefers-contrast: more){
+  .kan-card, .sticky{ box-shadow:none; border-color:#111827; }
+  .btn{ border-color:#111827; background:#fff; }
+}
+@media (forced-colors: active){
+  .kan-card, .sticky, .btn{
+    border-color: CanvasText;
+    forced-color-adjust: none;
+  }
+  .btn{
+    background: Canvas;
+    color: CanvasText;
+  }
+}
+/* Focus clavier utile dans les notes */
+.sticky :where(input[type="checkbox"], .ft-btn.icon, .btn.icon){
+  outline: none;
+}
+.sticky :where(input[type="checkbox"], .ft-btn.icon, .btn.icon):focus-visible{
+  box-shadow: 0 0 0 3px var(--ring);
+  border-color: rgba(var(--ft-brand-main-rgb), .45);
+}
+
+/* =======================================================
+   RESPONSIVE & DENSIFICATION
+   ======================================================= */
+
+/* Laptops faible hauteur (ex: 1366x768) → cartes plus courtes */
+@media (max-height: 800px){
+  :root{ --card-height: clamp(110px, 18vh, 160px); }
+  .kan-cards{ block-size: calc(2.7 * var(--card-height) + 2 * var(--cards-gap)); }
+}
+
+/* Écrans M (1024–1440) : densifier */
+@media (min-width: 1024px) and (max-width: 1439.98px){
+  :root{
+    --cards-gap: 8px;
+    --card-height: clamp(115px, 18vh, 160px);
+  }
+  .kan-board{ gap: 0.875rem; }
+  .kan-col__title{ padding: .5rem .625rem; }
+  .kan-card{ padding: .625rem; }
+  .kan-card__title{ -webkit-line-clamp: 2; line-clamp: 2; }
+  .kan-card__quick, .kan-card__notes{ -webkit-line-clamp: 2; line-clamp: 2; }
+  .more-badge{ height: 22px; padding: 0 7px; }
+}
+
+/* Tablettes / petits laptops (768–1023) : 3 colonnes + cartes courtes */
+@media (min-width: 768px) and (max-width: 1023.98px){
+  .kan-board{ grid-template-columns: repeat(3, 1fr); }
+  :root{ --card-height: clamp(110px, 21vh, 150px); --cards-gap: 8px; }
+  .kan-cards{ block-size: calc(2.5 * var(--card-height) + 2 * var(--cards-gap)); }
+}
+
+/* Très petites hauteurs (<=700px) : encore plus dense */
+@media (max-height: 700px){
+  :root{ --card-height: clamp(100px, 17vh, 145px); }
+  .kan-card__title{ -webkit-line-clamp: 1; line-clamp: 1; }
+}
+
+/* Grands écrans (>=1600) : boost lisibilité & souffle */
+@media (min-width: 1600px){
+  .agile-wrap.meeting-on{ font-size: 1.06em; }
+  :root{ --card-height: clamp(140px, 23vh, 220px); }
+}

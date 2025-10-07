@@ -1,19 +1,54 @@
-/* src/styles/planner-common.css 
-   Styles réutilisables entre tous les planners (Agile, Tableau, Semainier)
-   Dépend de src/styles/tokens.css pour les variables. */
+/* =====================================================================
+   src/styles/planner-common.css
+   Styles communs (Agile, Tableau, Mois, modales…) — Thème FoxyTable
+   Bleu minuit (#191970) + accent orange (#E5813E)
+   ===================================================================== */
 
-/* Fallback focus ring si non défini dans les tokens */
+/* -------------------- Thème Foxy (tokens/fallback) -------------------- */
 :root{
-  --focus-ring: var(--focus-ring, 0 0 0 0.1875rem rgba(124,58,237,.20)); /* ~3px */
+  /* Couleurs de marque */
+  --ft-brand-main: #191970;                 /* Bleu minuit */
+  --ft-brand-main-rgb: 25,25,112;
+  --ft-accent: #E5813E;                     /* Orange */
+  --ft-accent-rgb: 229,129,62;
+
+  /* Surfaces & texte */
+  --surface: #ffffff;
+  --surface-2: #fbfbfd;
+  --border: #e5e7eb;
+  --text: #0f172a;
+  --muted: #64748b;
+
+  /* Ombres */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.06);
+  --shadow:    0 10px 24px rgba(0,0,0,.08);
+
+  /* Anneau de focus (brand) */
+  --ring: rgba(var(--ft-brand-main-rgb), .28);
+  --focus-ring: 0 0 0 3px var(--ring);
+
+  /* Teintes de statut (pastilles génériques) */
+  --st-priority: #ef4444;  /* rouge */
+  --st-progress: #f59e0b;  /* ambre */
+  --st-wait:     #E5813E;  /* accent orange */
+  --st-blocked:  #dc2626;  /* rouge foncé */
+  --st-done:     #10b981;  /* vert */
+  --st-info:     #3b82f6;  /* bleu */
+
+  /* Dégradés pour badge de priorité */
+  --prio-hi-1: #ef4444; --prio-hi-2:#dc2626; --prio-hi-text:#ffffff;
+  --prio-md-1: #f59e0b; --prio-md-2:#fb923c; --prio-md-text:#5a2d00;
+  --prio-lo-1: #93c5fd; --prio-lo-2:#60a5fa; --prio-lo-text:#0b3b8c;
 }
 
-/* =============== Pastilles (points de couleur) =============== */
+/* =======================================================================
+   Pastilles (points), Chips & Badges de statut / priorité / tags
+   ======================================================================= */
+
+/* Pastille (petit point coloré) */
 .dot{
-  width:0.625rem;  /* 10px */
-  height:0.625rem; /* 10px */
-  border-radius:50%;
-  display:inline-block;
-  flex:0 0 0.625rem;
+  width:10px; height:10px; border-radius:50%;
+  display:inline-block; flex:0 0 10px;
 }
 .dot.priority{ background:var(--st-priority); }
 .dot.progress{ background:var(--st-progress); }
@@ -21,128 +56,185 @@
 .dot.blocked { background:var(--st-blocked); }
 .dot.done    { background:var(--st-done); }
 .dot.info    { background:var(--st-info); }
+.dot--sm{ width:8px; height:8px; }
+.dot--lg{ width:12px; height:12px; }
 
-/* variantes de taille utiles au besoin */
-.dot--sm{ width:0.5rem; height:0.5rem; }     /* 8px  */
-.dot--lg{ width:0.75rem; height:0.75rem; }   /* 12px */
-
-/* =============== Chips de statut (pilules) =============== */
+/* Chip de statut (pilule) */
 .status-chip{
-  display:inline-flex; align-items:center; gap:0.5rem;      /* 8px */
-  padding:0.375rem 0.625rem;                                 /* 6px 10px */
-  border-radius:999px;
+  display:inline-flex; align-items:center; gap:8px;
+  padding:6px 10px; border-radius:999px;
   background:#fff; border:1px solid var(--border);
   font-weight:700; font-size:.9rem; line-height:1;
   transition:transform .12s ease, box-shadow .12s ease;
 }
-.status-chip .dot{ box-shadow:inset 0 0 0 1px rgba(0,0,0,.06); }
-.status-chip:hover{ transform:translateY(-0.0625rem); box-shadow:var(--shadow-sm); } /* 1px */
-.status-chip:focus-visible{
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
+.status-chip .dot{ box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); }
+.status-chip:hover{ transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.status-chip:focus-visible{ outline:0; box-shadow: var(--focus-ring); }
 
-/* teintes par statut (légèrement colorées, lisibles sur #FAFAFA) */
-.status-chip.is-progress{
-  background:rgba(252,205,4,.18);
-  border-color:rgba(252,205,4,.35);
-  color:#6b4e00;
-}
-.status-chip.is-wait{
-  background:rgba(255,180,143,.18);
-  border-color:rgba(255,180,143,.35);
-  color:#7a3f2a;
-}
-.status-chip.is-blocked{
-  background:rgba(226,77,77,.16);
-  border-color:rgba(226,77,77,.35);
-  color:#7a1c1c;
-}
-.status-chip.is-done{
-  background:rgba(23,233,224,.18);
-  border-color:rgba(23,233,224,.35);
-  color:#0b6b66;
-}
-.status-chip.is-info{
-  background:rgba(77,124,254,.16);
-  border-color:rgba(77,124,254,.35);
-  color:#1c3a96;
-}
-.status-chip.is-priority{
-  background:rgba(166,74,201,.14);
-  border-color:rgba(166,74,201,.35);
-  color:#4a1f5a;
-}
+/* Teintes lisibles par statut */
+.status-chip.is-progress{ background:rgba(245,158,11,.16); border-color:rgba(245,158,11,.35); color:#713f12; }
+.status-chip.is-wait    { background:rgba(var(--ft-accent-rgb),.16); border-color:rgba(var(--ft-accent-rgb),.35); color:#7a3f2a; }
+.status-chip.is-blocked { background:rgba(220,38,38,.14);  border-color:rgba(220,38,38,.35);  color:#7a1c1c; }
+.status-chip.is-done    { background:rgba(16,185,129,.16); border-color:rgba(16,185,129,.35); color:#065f46; }
+.status-chip.is-info    { background:rgba(59,130,246,.16);  border-color:rgba(59,130,246,.35);  color:#1e40af; }
 
-/* =============== Badge de priorité (dégradé selon niveau) =============== */
-/* Utilisation : <span class="badge-prio" data-level="Élevé|Moyen|Faible">…</span> */
+/* Badge de priorité (Élevé / Moyen / Faible) */
 .badge-prio{
-  display:inline-flex; align-items:center; gap:0.375rem;     /* 6px */
-  padding:0.25rem 0.75rem;                                   /* 4px 12px */
-  border-radius:999px; font-weight:800;
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 12px; border-radius:999px; font-weight:800;
   border:1px solid transparent; box-shadow:var(--shadow-sm);
-  transition:transform .12s ease, box-shadow .12s ease;
+  transition: transform .12s ease, box-shadow .12s ease;
   line-height:1;
 }
-.badge-prio:hover{ transform:translateY(-0.0625rem); box-shadow:var(--shadow); } /* 1px */
-.badge-prio .dot{
-  width:0.625rem; height:0.625rem;                           /* 10px */
-  border-radius:50%;
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);
-}
+.badge-prio:hover{ transform: translateY(-1px); box-shadow: var(--shadow); }
+.badge-prio .dot{ width:10px; height:10px; border-radius:50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
 
-/* Priorité Élevé (foncé, très contrasté) */
 .badge-prio[data-level="Élevé"]{
   background:linear-gradient(135deg,var(--prio-hi-1),var(--prio-hi-2));
-  color:var(--prio-hi-text);
-  border-color:rgba(76,29,149,.55); /* #4C1D95 */
+  color:var(--prio-hi-text); border-color:rgba(120,25,25,.55);
 }
-.badge-prio[data-level="Élevé"] .dot{ background:#4C1D95; }
+.badge-prio[data-level="Élevé"] .dot{ background:#7f1d1d; }
 
-/* Priorité Moyen (violet soutenu) */
 .badge-prio[data-level="Moyen"]{
   background:linear-gradient(135deg,var(--prio-md-1),var(--prio-md-2));
-  color:var(--prio-md-text);
-  border-color:rgba(124,58,237,.55); /* #7C3AED */
+  color:var(--prio-md-text); border-color:rgba(120,53,15,.45);
 }
-.badge-prio[data-level="Moyen"] .dot{ background:#7C3AED; }
+.badge-prio[data-level="Moyen"] .dot{ background:#b45309; }
 
-/* Priorité Faible (pastel lisible) */
 .badge-prio[data-level="Faible"]{
   background:linear-gradient(135deg,var(--prio-lo-1),var(--prio-lo-2));
-  color:var(--prio-lo-text);
-  border-color:rgba(76,29,149,.25); /* #4C1D95 en léger */
+  color:var(--prio-lo-text); border-color:rgba(30,64,175,.35);
 }
-.badge-prio[data-level="Faible"] .dot{ background:#A78BFA; }
+.badge-prio[data-level="Faible"] .dot{ background:#3b82f6; }
 
-/* Fallback si data-level absent → utilise la teinte priorité générique */
+/* Fallback si data-level manquant */
 .badge-prio:not([data-level]){
-  background:linear-gradient(135deg,#C4B5FD,#A78BFA);
-  color:#321B6B;
-  border-color:rgba(76,29,149,.25);
+  background:linear-gradient(135deg,#e2e8f0,#cbd5e1);
+  color:#0f172a; border-color:#cbd5e1;
 }
 
-/* =============== Tag utilisateur / méta =============== */
+/* Tag méta */
 .tag{
-  display:inline-flex; align-items:center; gap:0.375rem;      /* 6px */
-  padding:0.25rem 0.625rem;                                    /* 4px 10px */
-  border-radius:999px; font-size:.85rem; font-weight:600;
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 10px; border-radius:999px; font-size:.85rem; font-weight:700;
   background:#EEF2FF; border:1px solid var(--border); color:#1e293b;
 }
 
-/* =============== Légende (liste d’items avec pastille/texte) =============== */
-.legend{ display:flex; gap:0.625rem; flex-wrap:wrap; }        /* 10px */
-.legend .item{ display:flex; align-items:center; gap:0.5rem; }/* 8px  */
+/* Légende compacte */
+.legend{ display:flex; gap:10px; flex-wrap:wrap; }
+.legend .item{ display:flex; align-items:center; gap:8px; }
 
-/* =============== Accessibilité =============== */
-.tag:focus-visible,
-.badge-prio:focus-visible,
-.status-chip:focus-visible{
-  outline: none;
-  box-shadow: var(--focus-ring);
+/* =======================================================================
+   Modale générique (cd-*) + DateRangeModal (drm-*)
+   ======================================================================= */
+
+/* Overlay et panneau */
+.cd-overlay{
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(17,24,39,.45);
+  display:flex; align-items:center; justify-content:center;
+  padding: 16px;
+}
+.cd-panel{
+  width:100%; max-width: 620px;
+  background: #fff; border-radius: 14px;
+  padding: 18px; box-shadow: 0 6px 20px rgba(0,0,0,.08);
+  border: 1px solid #eef2f7;
 }
 
-/* =============== Réduction de mouvement (préférence utilisateur) =============== */
+/* Actions bas de modale */
+.cd-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top: 10px; }
+.cd-btn{
+  padding:.55rem .9rem; border-radius:.6rem; font-weight:800; border:1px solid var(--border); cursor:pointer;
+  background:#fff; color:var(--text);
+  transition: background .12s ease, border-color .12s ease, box-shadow .12s ease, transform .06s ease;
+}
+.cd-btn:hover{ background:#f9fafb; transform: translateY(-1px); }
+.cd-btn:focus-visible{ outline:0; box-shadow: var(--focus-ring); border-color: rgba(var(--ft-brand-main-rgb), .45); }
+.cd-cancel{ background:#fff; }
+.cd-confirm{
+  background: var(--ft-accent); color:#fff; border-color: var(--ft-accent);
+  box-shadow: 0 6px 16px rgba(var(--ft-accent-rgb), .18);
+}
+.cd-confirm:hover{ filter: brightness(1.04); }
+
+/* Champs date + presets */
+.drm-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:.75rem; margin:.25rem 0 1rem; }
+.drm-field{ display:flex; flex-direction:column; gap:.375rem; }
+.drm-label{ font-weight:700; color:#111827; }
+.drm-input{
+  padding:.5rem .625rem; border:1px solid var(--border); border-radius:.625rem; font:inherit; background:#fff; color:var(--text);
+  transition: box-shadow .12s ease, border-color .12s ease, background .12s ease;
+}
+.drm-input:focus{ outline:0; border-color: rgba(var(--ft-brand-main-rgb), .45); box-shadow: var(--focus-ring); }
+
+.drm-presets{ display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; margin-bottom:.75rem; }
+.drm-presets__title{ font-weight:700; color:#6b7280; margin-right:.25rem; }
+.drm-chip{
+  padding:.375rem .625rem; border-radius:999px; border:1px dashed rgba(0,0,0,.14); background:#fff; cursor:pointer; font-weight:700;
+  transition: background .12s ease, border-color .12s ease, transform .06s ease, box-shadow .12s ease;
+}
+.drm-chip:hover{ background:#fff7ef; border-color: rgba(var(--ft-accent-rgb),.55); transform: translateY(-1px); }
+.drm-chip:focus-visible{ outline:0; box-shadow: var(--focus-ring); border-color: rgba(var(--ft-brand-main-rgb), .45); }
+
+/* =======================================================================
+   Mini-agenda (calendrier visuel) — cdr-*
+   ======================================================================= */
+.cdr-cal{ border:1px solid var(--border); border-radius:12px; padding:10px; background:#fff; }
+.cdr-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.cdr-month{ font-weight:800; color: var(--ft-brand-main); text-transform:capitalize; }
+.cdr-nav{
+  width:36px; height:36px; border-radius:10px; border:1px solid var(--border); background:#fff; cursor:pointer; font-weight:900;
+}
+.cdr-nav:hover{ background:#f9fafb; }
+
+.cdr-grid{ display:grid; grid-template-columns: repeat(7, 1fr); gap:6px; }
+.cdr-dayhead{
+  text-align:center; font-weight:800; font-size:.85rem; color:#334155;
+  padding:6px 0; background:#eef2ff; border:1px solid var(--border); border-radius:8px;
+}
+.cdr-cell{
+  position:relative; height:40px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer;
+  transition: transform .06s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
+}
+.cdr-cell:hover{ transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,.06); }
+.cdr-cell.is-out{ background:#fafafa; color:#9ca3af; }
+.cdr-date{ position:absolute; top:6px; left:6px; font-weight:800; font-size:.85rem; }
+
+/* Aujourd’hui (anneau bleu) */
+.cdr-cell.is-today{
+  border-color: rgba(var(--ft-brand-main-rgb), .45);
+  box-shadow: 0 0 0 3px rgba(var(--ft-brand-main-rgb), .18) inset;
+}
+
+/* Sélection de plage (orange Foxy) */
+.cdr-cell.is-range{ background:#fff7ef; border-color:#ffd8bd; }
+.cdr-cell.is-start,
+.cdr-cell.is-end{
+  background: var(--ft-accent); color:#fff; border-color: var(--ft-accent);
+}
+
+/* =======================================================================
+   Accessibilité / préférences / responsive
+   ======================================================================= */
+@media (max-width: 560px){
+  .drm-grid{ grid-template-columns: 1fr; }
+}
+
 @media (prefers-reduced-motion: reduce){
-  .status-chip, .badge-prio{ transition:none; }
+  .status-chip, .badge-prio, .drm-chip, .cdr-cell, .cd-btn{ transition: none !important; }
+}
+
+@media (prefers-contrast: more){
+  .status-chip, .badge-prio, .tag, .cdr-cal, .cdr-cell, .cd-panel, .drm-input, .drm-chip{
+    box-shadow:none; border-color:#111827;
+  }
+  .cdr-cell.is-today{ box-shadow: 0 0 0 3px var(--ring) inset; }
+}
+
+@media (forced-colors: active){
+  .cd-panel, .cdr-cell, .cdr-dayhead, .drm-input, .drm-chip, .cd-btn{
+    border-color: CanvasText !important; forced-color-adjust: none;
+  }
+  .cd-confirm{ background: Highlight !important; color: HighlightText !important; }
 }

@@ -5,6 +5,9 @@ import PlannerTable from "./pages/PlannerTable";
 import PlannerAgile from "./pages/PlannerAgile";
 import PlannerMonth from "./pages/PlannerMonth";
 import Login from "./pages/Login";
+// ex. src/main.tsx ou App.tsx
+import "./styles/responsive-overrides.css";
+
 
 import { AuthProvider } from "./contexts/AuthContext";
 import RequireAuth from "./components/RequireAuth";

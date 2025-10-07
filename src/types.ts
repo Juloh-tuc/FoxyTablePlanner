@@ -22,64 +22,169 @@ export type Etiquette =
   | "Autre"
   | (string & {});
 
-/** Modèle de tâche — **unique** pour toute l'app */
+/** Modèle de tâche — unique pour toute l'app (NO DELETE, ARCHIVE ONLY) */
 export interface Task {
   id: string;
 
   // ---- Champs FR (principaux)
-  titre: string;           // nom affiché
-  admin: string;           // responsable principal (toujours une string, peut être vide)
+  titre: string;
+  admin: string;
   team?: string;
   statut: Statut;
 
   priorite?: Priorite;
-  debut?: string;          // ISO yyyy-mm-dd
-  echeance?: string;       // ISO yyyy-mm-dd
+  debut?: string;     // ISO yyyy-mm-dd
+  echeance?: string;  // ISO yyyy-mm-dd
 
   // ---- Dépendances
-  /** celles qui bloquent cette tâche (entrantes) */
-  dependsOn?: string[];
-  /** celles que cette tâche bloque (sortantes) */
-  blocks?: string[];
+  dependsOn?: string[]; // entrantes
+  blocks?: string[];    // sortantes
 
   // ---- Blocages / remarques
-  bloque?: string;         // raison (texte)
-  bloquePar?: string;      // qui/quoi
-  remarques?: string;      // notes internes
+  bloque?: string;
+  bloquePar?: string;
+  remarques?: string;
 
   // ---- Étiquettes / personnes / progression
   etiquettes?: Etiquette[];
+  assignees: string[];        // toujours un tableau
 
-  /** Désormais **toujours** un tableau (éventuellement vide) */
-  assignees: string[];
-
-  avancement?: number;     // 0–100
+  avancement?: number; // 0–100
   budget?: number;
 
-  // ---- Archivage
-  archived?: boolean;
-  archivedAt?: string | null;
+  // ---- Archivage (NE JAMAIS SUPPRIMER)
+  archived: boolean;
+  archivedAt?: string | null;      // ISO
+  archivedReason?: string | null;  // optionnelle
 
-  // ---------- ALIAS (facultatifs) pour compat avec code existant ----------
-  // Si certains composants utilisent encore l’anglais, ces champs évitent les erreurs.
+  // ---- Timestamps
+  createdAt?: string; // ISO
+  updatedAt?: string; // ISO
+
+  // ---------- ALIAS (compat) ----------
   title?: string;          // alias de `titre`
   priority?: Priorite;     // alias de `priorite`
   startDate?: string;      // alias de `debut`
   dueDate?: string;        // alias de `echeance`
-
-  // Alias de blocage en anglais (si déjà utilisés quelque part)
-  blocked?: boolean;       // miroir bool si tu veux, optionnel
+  blocked?: boolean;       // miroir bool
   blockedBy?: string;      // alias de `bloque`
 }
 
-/* === Notes d’intégration (à appliquer côté code, pas ici) ==================
-1) Partout où tu crées / charges des tâches, assure `assignees` défini :
-   - à la création      : assignees: []
-   - au chargement seed : t.assignees ??= []
-   - lors des updates   : assignees: [...new Set(nextList)].filter(Boolean)
+/* ========= Utils conseillés ========================== */
 
-2) Si tu avais du code qui mettait `assignees` à `undefined`,
-   remplace par un tableau vide `[]`.
+const genId = () =>
+  (typeof crypto !== "undefined" && "randomUUID" in crypto)
+    ? crypto.randomUUID()
+    : "t-" + Math.random().toString(36).slice(2, 10);
 
-3) `admin` reste une string requise (peut être vide ""), donc ne lui mets plus `undefined`.
-========================================================================== */
+/** Normalise une tâche partielle -> Task (defaults + alias) */
+export function normalizeTask(draft: Partial<Task>): Task {
+  const s = (v: any) => (typeof v === "string" ? v : v == null ? "" : String(v));
+  const now = new Date().toISOString();
+
+  const titre = s(draft.titre ?? draft.title).trim();
+
+  const priorite = draft.priorite ?? draft.priority;
+  const debut = draft.debut ?? draft.startDate;
+  const echeance = draft.echeance ?? draft.dueDate;
+
+  const assignees = Array.isArray(draft.assignees) ? draft.assignees.filter(Boolean) : [];
+
+  return {
+    id: s(draft.id) || genId(),
+
+    // principaux
+    titre: titre || "Sans titre",
+    admin: s(draft.admin ?? ""),
+    team: draft.team,
+    statut: (draft.statut as Statut) ?? "Pas commencé",
+
+    priorite,
+    debut,
+    echeance,
+
+    // dépendances / blocage
+    dependsOn: draft.dependsOn ?? [],
+    blocks: draft.blocks ?? [],
+    bloque: draft.bloque,
+    bloquePar: draft.bloquePar,
+    remarques: draft.remarques,
+
+    // étiquettes / personnes / progression
+    etiquettes: draft.etiquettes ?? [],
+    assignees,
+    avancement: draft.avancement,
+    budget: draft.budget,
+
+    // archivage
+    archived: !!draft.archived,
+    archivedAt: draft.archivedAt ?? null,
+    archivedReason: draft.archivedReason ?? null,
+
+    // timestamps
+    createdAt: draft.createdAt ?? now,
+    updatedAt: now,
+
+    // alias (on garde si présents)
+    title: titre || undefined,
+    priority: priorite,
+    startDate: debut,
+    dueDate: echeance,
+    blocked: typeof draft.blocked === "boolean" ? draft.blocked : !!draft.bloque, // petit plus
+    blockedBy: draft.blockedBy,
+  };
+}
+
+/** Migration rapide d’un tableau (seed/localStorage) */
+export function ensureArchivedFields<T extends Partial<Task>>(items: T[]): Task[] {
+  return items.map((t) =>
+    normalizeTask({
+      ...t,
+      archived: typeof t.archived === "boolean" ? t.archived : false,
+      archivedAt: t.archivedAt ?? null,
+      archivedReason: (t as any).archivedReason ?? null,
+      assignees: Array.isArray(t.assignees) ? t.assignees : [],
+    })
+  );
+}
+
+/* === Presets centralisés (facultatif mais pratique) ====================== */
+export const STATUTS_ALL: readonly Statut[] =
+  ["Terminé", "En cours", "En attente", "Bloqué", "Pas commencé"] as const;
+
+export const PRIORITES_ALL: readonly Priorite[] =
+  ["Faible", "Moyen", "Élevé"] as const;
+
+export const ETIQUETTES_PRESET: readonly Etiquette[] =
+  ["Web", "Front-BO", "Back-FO", "Front-FO", "Back-BO", "API", "Design", "Mobile", "Autre"] as const;
+  // --- NOTES ---
+export interface Note {
+  id: string;
+  titre: string;           // nouveau: titre affiché
+  contenu: string;         // corps de la note
+  archived: boolean;       // jamais de delete
+  archivedAt?: string | null;
+  archivedReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function normalizeNote(draft: Partial<Note>): Note {
+  const now = new Date().toISOString();
+  const titre = (draft.titre ?? draft.contenu ?? "").toString().split("\n")[0].trim().slice(0, 80) || "Sans titre";
+  return {
+    id: draft.id ?? (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : "n-" + Math.random().toString(36).slice(2)),
+    titre,
+    contenu: (draft.contenu ?? "").toString(),
+    archived: !!draft.archived,
+    archivedAt: draft.archivedAt ?? null,
+    archivedReason: draft.archivedReason ?? null,
+    createdAt: draft.createdAt ?? now,
+    updatedAt: now,
+  };
+}
+
+export function ensureArchivedFieldsNotes<T extends Partial<Note>>(items: T[]): Note[] {
+  return items.map(n => normalizeNote(n));
+}
+

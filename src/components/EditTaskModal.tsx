@@ -1,15 +1,13 @@
 // src/components/EditTaskModal.tsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import "./edit-task-modal.css";
-import type { Task, Statut, Priorite } from "../types";
+import type { Task, Statut, Priorite, Etiquette } from "../types";
+import { STATUTS_ALL, PRIORITES_ALL, ETIQUETTES_PRESET } from "../types";
 
-/* ---------- Constantes & helpers ---------- */
 
-const STATUTS: Statut[] = ["Pas commencé", "En cours", "En attente", "Bloqué", "Terminé"];
-
-/** uniq robuste: accepte string | null | undefined en entrée, renvoie string[] */
-const uniq = (arr: Array<string | null | undefined>): string[] =>
+/* ---------- Helpers ---------- */
+const uniqStrings = (arr: Array<string | null | undefined>): string[] =>
   Array.from(
     new Set(
       arr
@@ -18,10 +16,8 @@ const uniq = (arr: Array<string | null | undefined>): string[] =>
     )
   );
 
-/** coerce vers string pour value des <input> contrôlés */
 const s = (v?: string | null) => v ?? "";
 
-/** borne pour le pourcentage d’avancement */
 const toPct = (n: unknown) => {
   const v = Number(n);
   if (Number.isNaN(v)) return 0;
@@ -31,34 +27,45 @@ const toPct = (n: unknown) => {
 type Props = {
   open: boolean;
   task: Task;
-  tasks: Task[];             // liste globale pour les dépendances
-  admins: string[];
+  tasks: Task[];                 // pour les dépendances
+  admins: string[];              // liste admins dispo
   onSave: (updated: Task) => void;
   onClose: () => void;
-  onAskArchiveDelete: (t: Task) => void;
+  onAskArchiveDelete: (t: Task) => void; // le parent gère l’archivage/restauration
 };
 
 export default function EditTaskModal({
   open,
   task,
-   tasks = [],
-  admins: _admins, // non utilisé ici, on garde la signature
+  tasks = [],
+  admins,
   onSave,
   onClose,
   onAskArchiveDelete,
 }: Props) {
-  if (!open || !task) return null; // ✅ double garde-fou
+  if (!open || !task) return null;
 
-
-
-  // 🔒 Normalisation initiale : admin = string, assignees = string[]
-  const [draft, setDraft] = useState<Task>({
+  /* ---------- State brouillon ---------- */
+  const [draft, setDraft] = useState<Task>(() => ({
     ...task,
     admin: typeof task.admin === "string" ? task.admin : "",
     assignees: Array.isArray(task.assignees) ? task.assignees : [],
-  });
+    etiquettes: Array.isArray(task.etiquettes) ? task.etiquettes : [],
+  }));
+
+  // reset quand on rouvre / change de tâche
+  useEffect(() => {
+    if (!open) return;
+    setDraft({
+      ...task,
+      admin: typeof task.admin === "string" ? task.admin : "",
+      assignees: Array.isArray(task.assignees) ? task.assignees : [],
+      etiquettes: Array.isArray(task.etiquettes) ? task.etiquettes : [],
+    });
+  }, [open, task]);
 
   const [assigneeInput, setAssigneeInput] = useState<string>("");
+  const [newTag, setNewTag] = useState<string>("");
 
   // recherches pickers dépendances
   const [qIn, setQIn] = useState("");
@@ -70,7 +77,7 @@ export default function EditTaskModal({
   const addAssignee = () => {
     const v = assigneeInput.trim();
     if (!v) return;
-    setDraft((d) => ({ ...d, assignees: uniq([...(d.assignees ?? []), v]) }));
+    setDraft((d) => ({ ...d, assignees: uniqStrings([...(d.assignees ?? []), v]) }));
     setAssigneeInput("");
   };
 
@@ -82,8 +89,7 @@ export default function EditTaskModal({
       const cur = new Set([...(d[key] ?? [])]);
       if (cur.has(id)) cur.delete(id);
       else cur.add(id);
-      // anti auto-référence
-      cur.delete(d.id);
+      cur.delete(d.id); // anti auto-référence
       return { ...d, [key]: Array.from(cur) };
     });
   };
@@ -109,49 +115,116 @@ export default function EditTaskModal({
     [otherTasks, qOut]
   );
 
-  if (!open) return null;
+  /* ---------- Actions ---------- */
 
+  const handleSave = () => {
+    const name = (draft.titre ?? draft.title ?? "").trim().slice(0, 80);
+    if (!name) return; // bouton désactivé mais on sécurise
+    const nowIso = new Date().toISOString();
+
+    onSave({
+      ...draft,
+      titre: name || "Sans titre",
+      title: name || "Sans titre",
+
+      admin: (draft.admin ?? "").trim(),
+
+      // alias FR/EN cohérents
+      priorite: draft.priorite ?? draft.priority,
+      priority: draft.priorite ?? draft.priority,
+
+      debut: (draft.debut ?? draft.startDate) || undefined,
+      startDate: (draft.debut ?? draft.startDate) || undefined,
+      echeance: (draft.echeance ?? draft.dueDate) || undefined,
+      dueDate: (draft.echeance ?? draft.dueDate) || undefined,
+
+      // blocages
+      bloque: (draft.bloque ?? "").trim() || undefined,
+      blockedBy: (draft.bloque ?? "").trim()
+        ? (draft.bloque ?? "").trim()
+        : draft.blockedBy,
+      bloquePar: (draft.bloquePar ?? "").trim() || undefined,
+
+      // collections
+      assignees: uniqStrings(draft.assignees ?? []),
+      dependsOn: uniqStrings(draft.dependsOn ?? []),
+      blocks: uniqStrings(draft.blocks ?? []),
+      etiquettes: uniqStrings(draft.etiquettes ?? []) as Etiquette[],
+
+      // bornes
+      avancement: typeof draft.avancement === "number" ? toPct(draft.avancement) : 0,
+
+      // horodatage
+      updatedAt: nowIso,
+    });
+  };
+
+  const askArchive = () => {
+    const ok = window.confirm(
+      'Archiver cette tâche ?\n\nVous pourrez la retrouver via la case "Afficher archivées" et la restaurer.'
+    );
+    if (ok) onAskArchiveDelete({ ...draft });
+  };
+
+  // Raccourcis clavier
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      const isSaveCombo =
+        (e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === "s" || e.key === "Enter");
+      if (isSaveCombo) {
+        e.preventDefault();
+        handleSave();
+      }
+      if (e.shiftKey && e.key === "Delete") {
+        e.preventDefault();
+        askArchive();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [draft, onClose]); // draft pour sauvegarder l’état courant
+
+  const titleValue = s(draft.titre ?? draft.title);
+  const saveDisabled = titleValue.trim().length === 0;
+
+  /* ---------- Portal ---------- */
   return ReactDOM.createPortal(
     <div className="ft-modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="ft-modal ft-lg" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="ft-modal-header">
-          <h3 className="ft-modal-title">Modifier la tâche</h3>
+          <h3 className="ft-modal-title">Éditer la tâche</h3>
           <button className="ft-icon-btn" onClick={onClose} aria-label="Fermer">✕</button>
         </div>
 
         {/* Form */}
         <div className="tdm-grid">
-          {/* Titre (compat: utilise draft.titre OU draft.title) */}
+          {/* Titre */}
           <label className="tdm-field">
             <span className="tdm-label">Titre</span>
             <input
               className="cell-input"
-              value={s(draft.titre ?? draft.title)}
+              value={titleValue}
               onChange={(e) => {
-                // on remplit les deux pour rester compatible avec les deux mondes
-                const v = e.target.value;
+                const v = e.target.value.slice(0, 80);
                 setDraft((d) => ({ ...d, titre: v, title: v }));
               }}
               placeholder="Nom de la tâche"
             />
           </label>
 
-         {/* Admin */}
-<label className="tdm-field">
+ {/* Admin (saisie libre + suggestions) */}
+ <label className="tdm-field">
   <span className="tdm-label">Admin</span>
-  <input
-    list="admins-list"
-    className="cell-input"
-    value={draft.admin ?? ""} // ← toujours une string (jamais undefined)
-    onChange={(e) =>
-      setDraft((d) => ({ ...d, admin: e.target.value })) // ← on force bien une string
-    }
-    placeholder="Sélectionner ou saisir…"
-  />
-</label>
-
-
+   <input
+     list="admins-list"
+     className="cell-input"
+    placeholder="Tape un prénom ou choisis…"
+    value={draft.admin ?? ""}
+     onChange={(e) => setDraft((d) => ({ ...d, admin: e.target.value }))}
+   />
+ </label>
           {/* Statut */}
           <label className="tdm-field">
             <span className="tdm-label">Statut</span>
@@ -160,7 +233,7 @@ export default function EditTaskModal({
               value={draft.statut}
               onChange={(e) => change("statut", e.target.value as Statut)}
             >
-              {STATUTS.map((st) => (
+              {STATUTS_ALL.map((st) => (
                 <option key={st} value={st}>{st}</option>
               ))}
             </select>
@@ -171,20 +244,20 @@ export default function EditTaskModal({
             <span className="tdm-label">Priorité</span>
             <select
               className="ft-select"
-              value={(draft.priorite ?? draft.priority) ?? ""} // compat
+              value={(draft.priorite ?? draft.priority) ?? ""}
               onChange={(e) => {
-                const v = e.target.value as "" | Priorite;
+                const v = (e.target.value || "") as "" | Priorite;
                 setDraft((d) => ({
                   ...d,
                   priorite: v === "" ? undefined : v,
-                  priority: v === "" ? undefined : v, // synchro alias
+                  priority: v === "" ? undefined : v,
                 }));
               }}
             >
               <option value="">—</option>
-              <option value="Élevé">Élevé</option>
-              <option value="Moyen">Moyen</option>
-              <option value="Faible">Faible</option>
+              {PRIORITES_ALL.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
             </select>
           </label>
 
@@ -239,7 +312,7 @@ export default function EditTaskModal({
                 setDraft((d) => ({
                   ...d,
                   bloque: v === "" ? undefined : v,
-                  blockedBy: v === "" ? undefined : v, // synchro alias
+                  blockedBy: v === "" ? undefined : v,
                 }));
               }}
             />
@@ -258,7 +331,7 @@ export default function EditTaskModal({
             />
           </label>
 
-          {/* Dépendances */}
+          {/* Dépendances : dépend de */}
           <div className="tdm-field span-2">
             <span className="tdm-label">Dépend de</span>
             <div style={{ display: "grid", gap: 8 }}>
@@ -287,6 +360,7 @@ export default function EditTaskModal({
             </div>
           </div>
 
+          {/* Dépendances : bloque */}
           <div className="tdm-field span-2">
             <span className="tdm-label">Bloque</span>
             <div style={{ display: "grid", gap: 8 }}>
@@ -315,6 +389,94 @@ export default function EditTaskModal({
             </div>
           </div>
 
+          {/* Étiquettes */}
+          <div className="tdm-field span-2">
+            <span className="tdm-label">Étiquettes</span>
+
+            {/* Presets */}
+            <div className="tag-popover-list" style={{ marginBottom: 8 }}>
+              {ETIQUETTES_PRESET.map((lbl) => (
+                <label key={lbl} className="tag-option">
+                  <input
+                    type="checkbox"
+                    checked={(draft.etiquettes ?? []).includes(lbl)}
+                    onChange={() =>
+                      setDraft((d) => {
+                        const has = (d.etiquettes ?? []).includes(lbl);
+                        const next = has
+                          ? (d.etiquettes ?? []).filter((x) => x !== lbl)
+                          : [...(d.etiquettes ?? []), lbl];
+                        return { ...d, etiquettes: uniqStrings(next) as Etiquette[] };
+                      })
+                    }
+                  />
+                  <span>{lbl}</span>
+                </label>
+              ))}
+            </div>
+
+            {/* Liste actuelle + suppression */}
+            <div className="assignees-chips" style={{ marginBottom: 8 }}>
+              {(draft.etiquettes ?? []).map((tag) => (
+                <span key={tag} className="chip">
+                  {tag}
+                  <button
+                    className="chip-x"
+                    onClick={() =>
+                      setDraft((d) => ({
+                        ...d,
+                        etiquettes: (d.etiquettes ?? []).filter((x) => x !== tag),
+                      }))
+                    }
+                    title="Retirer"
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {(draft.etiquettes ?? []).length === 0 && <span className="muted">Aucune étiquette</span>}
+            </div>
+
+            {/* Ajout custom */}
+            <div className="assignees-add">
+              <input
+                className="cell-input"
+                placeholder="Ajouter une étiquette personnalisée… (Entrée)"
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const t = newTag.trim();
+                    if (t && !(draft.etiquettes ?? []).includes(t as Etiquette)) {
+                      setDraft((d) => ({
+                        ...d,
+                        etiquettes: uniqStrings([...(d.etiquettes ?? []), t]) as Etiquette[],
+                      }));
+                    }
+                    setNewTag("");
+                  }
+                }}
+              />
+              <button
+                className="ft-btn"
+                type="button"
+                onClick={() => {
+                  const t = newTag.trim();
+                  if (t && !(draft.etiquettes ?? []).includes(t as Etiquette)) {
+                    setDraft((d) => ({
+                      ...d,
+                      etiquettes: uniqStrings([...(d.etiquettes ?? []), t]) as Etiquette[],
+                    }));
+                  }
+                  setNewTag("");
+                }}
+              >
+                + Ajouter
+              </button>
+            </div>
+          </div>
+
           {/* Remarques */}
           <label className="tdm-field span-2">
             <span className="tdm-label">Remarques</span>
@@ -323,7 +485,7 @@ export default function EditTaskModal({
               rows={4}
               value={s(draft.remarques)}
               onChange={(e) => {
-                const v = e.target.value;
+                const v = e.target.value.slice(0, 250);
                 setDraft((d) => ({ ...d, remarques: v.trim() === "" ? undefined : v }));
               }}
               placeholder="Notes internes, contexte…"
@@ -340,6 +502,7 @@ export default function EditTaskModal({
                   <button className="chip-x" onClick={() => removeAssignee(a)} title="Retirer" type="button">×</button>
                 </span>
               ))}
+              {(draft.assignees ?? []).length === 0 && <span className="muted">Personne pour l’instant</span>}
             </div>
             <div className="assignees-add">
               <input
@@ -358,58 +521,26 @@ export default function EditTaskModal({
         {/* Actions */}
         <div className="ft-modal-actions space-between">
           <div>
-            <button className="ft-btn danger" type="button" onClick={() => onAskArchiveDelete(draft)}>
-              Archiver / Supprimer…
+            <button className="ft-btn danger" type="button" onClick={askArchive}>
+              Archiver
             </button>
           </div>
           <div>
+            <button className="ft-btn ghost" type="button" onClick={onClose}>Annuler</button>
             <button
               className="ft-btn primary"
               type="button"
-              onClick={() => {
-                // nom sûr (jamais undefined)
-                const name = (draft.titre ?? draft.title ?? "").trim();
-
-                onSave({
-                  ...draft,
-
-                  // titre/title: toujours une string
-                  titre: name,
-                  title: name,
-
-                  // 🔒 admin: toujours string (potentiellement vide)
-                  admin: typeof draft.admin === "string" ? draft.admin : "",
-
-                  // priorités (alias)
-                  priorite: draft.priorite ?? draft.priority,
-                  priority: draft.priorite ?? draft.priority,
-
-                  // dates (alias) — OK si undefined côté type (optionnel)
-                  debut: (draft.debut ?? draft.startDate) || undefined,
-                  startDate: (draft.debut ?? draft.startDate) || undefined,
-                  echeance: (draft.echeance ?? draft.dueDate) || undefined,
-                  dueDate: (draft.echeance ?? draft.dueDate) || undefined,
-
-                  // champs texte optionnels: on nettoie en undefined si vide
-                  bloque: (draft.bloque ?? "").trim() || undefined,
-                  blockedBy: (draft.bloque ?? "").trim() ? (draft.bloque ?? "").trim() : draft.blockedBy,
-                  bloquePar: (draft.bloquePar ?? "").trim() || undefined,
-                  remarques: (draft.remarques ?? "").trim() || undefined,
-
-                  // tableaux nettoyés
-                  assignees: uniq(draft.assignees ?? []),  // ← garantit string[]
-                  dependsOn: uniq(draft.dependsOn ?? []),
-                  blocks: uniq(draft.blocks ?? []),
-
-                  // nombres bornés
-                  avancement: typeof draft.avancement === "number" ? toPct(draft.avancement) : 0,
-                });
-              }}
+              onClick={handleSave}
+              disabled={saveDisabled}
+              title={saveDisabled ? "Le titre est requis" : "Enregistrer (Ctrl/Cmd+S)"}
             >
               Enregistrer
             </button>
           </div>
         </div>
+
+        {/* datalist pour l’auto-complétion des assignés */}
+        <datalist id="admins-list">{admins.map((a) => <option key={a} value={a} />)}</datalist>
       </div>
     </div>,
     document.body

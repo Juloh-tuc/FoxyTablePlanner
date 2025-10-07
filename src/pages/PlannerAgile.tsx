@@ -8,9 +8,8 @@ import "../styles/planner-agile.css";
 import "../styles/planner-table.css";
 
 import CreateTaskModal from "../components/CreateTaskModal";
-import EditTaskModal from "../components/EditTaskModal"; // édition
-import ConfirmDialog from "../components/ConfirmDialog"; // ⬅️ ajouté
-import { useConfirm } from "../hooks/useConfirm";        // ⬅️ ajouté
+import EditTaskModal from "../components/EditTaskModal";
+import { useProjector } from "../hooks/useProjector";
 
 /* =========================
    Helpers & Constantes
@@ -18,11 +17,10 @@ import { useConfirm } from "../hooks/useConfirm";        // ⬅️ ajouté
 type ColKey = "done" | "progress" | "blocked" | "todo";
 
 const toKey = (s: Statut): ColKey =>
-  s === "Terminé"    ? "done"    :
-  s === "En cours"   ? "progress":
-  s === "Bloqué"     ? "blocked" :
-  s === "En attente" ? "blocked" :
-                       "todo";
+  s === "Terminé" ? "done" :
+  s === "En cours" ? "progress" :
+  s === "Bloqué" || s === "En attente" ? "blocked" :
+  "todo";
 
 const fromKey = (k: ColKey): Statut =>
   k === "done" ? "Terminé" :
@@ -30,21 +28,20 @@ const fromKey = (k: ColKey): Statut =>
   k === "blocked" ? "Bloqué" :
   "Pas commencé";
 
-// Ordre demandé
 const COLUMNS: Array<{ key: ColKey; title: string; stat: Statut }> = [
-  { key: "done", title: "Terminé", stat: "Terminé" },
-  { key: "progress", title: "En cours", stat: "En cours" },
-  { key: "blocked", title: "Bloqué", stat: "Bloqué" },
-  { key: "todo", title: "Pas commencé", stat: "Pas commencé" },
+  { key: "done",     title: "Terminé",       stat: "Terminé" },
+  { key: "progress", title: "En cours",      stat: "En cours" },
+  { key: "blocked",  title: "Bloqué",        stat: "Bloqué" },
+  { key: "todo",     title: "Pas commencé",  stat: "Pas commencé" },
 ];
 
-// Inclut "En attente"
 const STATUTS: Statut[] = ["Pas commencé", "En cours", "En attente", "Bloqué", "Terminé"];
 
-const uid = () => Math.random().toString(36).slice(2, 9);
-// const todayISO = () => new Date().toISOString().slice(0, 10); // Removed as it is unused
+const uid = () =>
+  (typeof crypto !== "undefined" && "randomUUID" in crypto)
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2, 10);
 
-// people = admin + assignees[]
 const uniquePeople = (rows: Task[]) => {
   const set = new Set<string>();
   rows.forEach((r) => {
@@ -69,6 +66,7 @@ const ADMIN_AVATARS: Record<string, string> = {
   Myriam: "myriam_foxy.png",
   Simon: "simon_foxy.png",
   Titouan: "titouan_foxy.png",
+  Anaïs: "anais_foxy.png",
 };
 const avatarUrlFor = (name?: string | null) => {
   if (!name) return null;
@@ -77,151 +75,272 @@ const avatarUrlFor = (name?: string | null) => {
 };
 
 /* ===============================
-   Modale Archiver / Supprimer
+   Modale simple — Archiver uniquement (pas de suppression)
    =============================== */
-function ArchiveDeleteDialog({
-  open,
-  title,
-  onArchive,
-  onDelete,
-  onCancel,
+function ArchiveDialog({
+  open, title, onArchive, onCancel,
 }: {
   open: boolean;
   title: string;
   onArchive: () => void;
-  onDelete: () => void;
   onCancel: () => void;
 }) {
   if (!open) return null;
   return (
     <div className="ft-modal-overlay" role="dialog" aria-modal="true" onClick={onCancel}>
       <div className="ft-modal" onClick={(e) => e.stopPropagation()}>
-        <h3 className="ft-modal-title">Que faire de « {title} » ?</h3>
-        <p className="ft-modal-text">Vous pouvez archiver (réversible) ou supprimer (définitif).</p>
+        <h3 className="ft-modal-title">Archiver « {title} » ?</h3>
+        <p className="ft-modal-text">L’élément restera consultable si vous cochez “Afficher archivées”.</p>
         <div className="ft-modal-actions">
-          <button className="ft-btn" onClick={onArchive}>
-            Archiver
-          </button>
-          <button className="ft-btn danger" onClick={onDelete}>
-            Supprimer
-          </button>
-          <button className="ft-btn ghost" onClick={onCancel}>
-            Annuler
-          </button>
+          <button className="ft-btn" onClick={onArchive}>Archiver</button>
+          <button className="ft-btn ghost" onClick={onCancel}>Annuler</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* ===============================
-   Notes post-it — couleur aléatoire + CONFIRM avant suppression
-   =============================== */
+/* =====================================================
+   Notes / Post-it (archiver/restaurer + tri/filtre + scroll interne)
+   ===================================================== */
 type StickyColor = "yellow" | "pink" | "green" | "blue";
-type Note = { id: string; text: string; color: StickyColor; author: string; isPrivate: boolean };
-
-const loadNotes = (k: string): Note[] => {
-  try {
-    return JSON.parse(localStorage.getItem(k) || "[]");
-  } catch {
-    return [];
-  }
+type StickyNote = {
+  id: string;
+  title: string;
+  text: string;
+  color: StickyColor;
+  author: string;
+  isPrivate: boolean;
+  archived: boolean;
+  createdAt: string;   // ISO
+  updatedAt: string;   // ISO
+  archivedAt?: string | null;
 };
-const saveNotes = (k: string, v: Note[]) => localStorage.setItem(k, JSON.stringify(v));
 
-const randomColor = (): StickyColor => {
+const STICKY_KEY_DEFAULT = "kanban-notes";
+const stickyRandomColor = (): StickyColor => {
   const colors: StickyColor[] = ["yellow", "pink", "green", "blue"];
   return colors[Math.floor(Math.random() * colors.length)];
 };
 
-function StickyNotesSection({ storageKey, meetingOn }: { storageKey: string; meetingOn: boolean }) {
-  const [notes, setNotes] = useState<Note[]>(() => loadNotes(storageKey));
+const loadSticky = (k: string): StickyNote[] => {
+  try {
+    const arr = JSON.parse(localStorage.getItem(k) || "[]");
+    if (!Array.isArray(arr)) return [];
+    return arr.map((n: any) => {
+      const createdIso = n.createdAt ? String(n.createdAt) : new Date().toISOString();
+      const titleAuto =
+        (n.title ?? String(n.text ?? "").split("\n")[0] ?? "")
+          .toString()
+          .trim()
+          .slice(0, 40) || "(Sans titre)";
+      return {
+        id: String(n.id ?? uid()),
+        title: String(n.title ?? titleAuto),
+        text: String(n.text ?? ""),
+        color: (n.color as StickyColor) ?? stickyRandomColor(),
+        author: String(n.author ?? "Moi"),
+        isPrivate: !!n.isPrivate,
+        archived: !!n.archived,
+        createdAt: typeof n.createdAt === "string" ? n.createdAt : createdIso,
+        updatedAt: typeof n.updatedAt === "string" ? n.updatedAt : createdIso,
+        archivedAt: n.archivedAt ?? null,
+      } as StickyNote;
+    });
+  } catch {
+    return [];
+  }
+};
+const saveSticky = (k: string, v: StickyNote[]) => {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
+};
+
+function StickyNotesSection({
+  storageKey = STICKY_KEY_DEFAULT,
+  meetingOn,
+}: { storageKey?: string; meetingOn: boolean }) {
+  const [notes, setNotes] = useState<StickyNote[]>(() => loadSticky(storageKey));
   const [hidePrivate, setHidePrivate] = useState<boolean>(meetingOn);
 
-  // Hook de confirmation
-  const confirm = useConfirm();
+  // filtres / tri
+  const [qTitle, setQTitle] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "title">("date");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const [scope, setScope] = useState<"actives" | "archivees">("actives");
 
-  useEffect(() => saveNotes(storageKey, notes), [notes, storageKey]);
+  useEffect(() => saveSticky(storageKey, notes), [notes, storageKey]);
   useEffect(() => setHidePrivate(meetingOn), [meetingOn]);
 
   const add = () => {
+    if (meetingOn) return;
+    const now = new Date().toISOString();
     setNotes((prev) => [
+      {
+        id: uid(),
+        title: "",
+        text: "",
+        color: stickyRandomColor(),
+        author: "Moi",
+        isPrivate: false,
+        archived: false,
+        createdAt: now,
+        updatedAt: now,
+        archivedAt: null,
+      },
       ...prev,
-      { id: uid(), text: "", color: randomColor(), author: "Moi", isPrivate: false },
     ]);
   };
-  const upd = (id: string, patch: Partial<Note>) =>
-    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
-  const del = (id: string) => setNotes((prev) => prev.filter((n) => n.id !== id));
 
-  const askDelete = async (n: Note) => {
-    const preview = (n.text || "").trim().slice(0, 40).replace(/\s+/g, " ");
-    const msg = preview
-      ? `Êtes-vous sûr de vouloir supprimer “${preview}${n.text.length > 40 ? "…" : ""}” ? Cette action est définitive.`
-      : "Êtes-vous sûr de vouloir supprimer cette note ? Cette action est définitive.";
-    const ok = await confirm.ask(msg);
-    if (ok) del(n.id);
+  const patch = (id: string, p: Partial<StickyNote>) =>
+    setNotes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, ...p, updatedAt: new Date().toISOString() } : n))
+    );
+
+  const archive = (id: string) =>
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === id
+          ? {
+              ...n,
+              archived: true,
+              archivedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+          : n
+      )
+    );
+
+  const restore = (id: string) =>
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === id
+          ? { ...n, archived: false, archivedAt: null, updatedAt: new Date().toISOString() }
+          : n
+      )
+    );
+
+  const askArchive = (id: string) => {
+    if (window.confirm("Archiver cette note ? (réversible : visible via « Archivées »)")) {
+      archive(id);
+    }
   };
 
-  const list = useMemo(() => (hidePrivate ? notes.filter((n) => !n.isPrivate) : notes), [notes, hidePrivate]);
+  // liste filtrée + triée
+  const filtered = useMemo(() => {
+    const q = qTitle.trim().toLowerCase();
+    let list = notes.filter((n) => (scope === "archivees" ? n.archived : !n.archived));
+    if (hidePrivate) list = list.filter((n) => !n.isPrivate);
+    if (q) list = list.filter((n) => n.title.toLowerCase().includes(q));
+    list.sort((a, b) => {
+      if (sortBy === "title") {
+        const cmp = a.title.localeCompare(b.title, "fr", { sensitivity: "base" });
+        return sortDir === "asc" ? cmp : -cmp;
+      } else {
+        const da = a.updatedAt ?? a.createdAt;
+        const db = b.updatedAt ?? b.createdAt;
+        const cmp = String(db).localeCompare(String(da)); // desc
+        return sortDir === "asc" ? -cmp : cmp;
+      }
+    });
+    return list;
+  }, [notes, qTitle, sortBy, sortDir, scope, hidePrivate]);
 
   return (
     <div className="notes-wrap">
       <div className="notes-toolbar">
         <div className="left">
-          <button className="ft-btn" onClick={add} disabled={meetingOn}>
-            + Post-it
-          </button>
+          <button className="ft-btn" onClick={add} disabled={meetingOn}>+ Post-it</button>
           <label className="nt-inline">
-            <input type="checkbox" checked={hidePrivate} onChange={(e) => setHidePrivate(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={hidePrivate}
+              onChange={(e) => setHidePrivate(e.target.checked)}
+            />
             Cacher notes privées
           </label>
         </div>
-        <div className="right" />
+        <div className="right">
+          <input
+            className="nt-input"
+            placeholder="Filtrer par titre…"
+            value={qTitle}
+            onChange={(e) => setQTitle(e.target.value)}
+          />
+          <select className="nt-select" value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}>
+            <option value="date">Date</option>
+            <option value="title">Titre</option>
+          </select>
+          <select className="nt-select" value={sortDir} onChange={(e) => setSortDir(e.target.value as any)}>
+            <option value="desc">Décroissant</option>
+            <option value="asc">Croissant</option>
+          </select>
+          <select className="nt-select" value={scope} onChange={(e) => setScope(e.target.value as any)}>
+            <option value="actives">Actives</option>
+            <option value="archivees">Archivées</option>
+          </select>
+        </div>
       </div>
 
+      {/* ⚠️ c’est CETTE div qui scrolle en interne */}
       <div className="notes-grid">
-        {list.map((n) => (
-          <div key={n.id} className={`sticky ${n.color}`}>
+        {filtered.map((n) => (
+          <div key={n.id} className={`sticky ${n.color} ${n.archived ? "is-archived" : ""}`}>
             <div className="sticky-head">
               <label className="nt-inline small">
                 <input
                   type="checkbox"
                   checked={n.isPrivate}
-                  onChange={(e) => upd(n.id, { isPrivate: e.target.checked })}
+                  onChange={(e) => patch(n.id, { isPrivate: e.target.checked })}
                   disabled={meetingOn}
                 />
                 Privé
               </label>
-              <button
-                className="ft-btn icon"
-                title="Supprimer"
-                onClick={() => askDelete(n)}
-                disabled={meetingOn}
-              >
-                🗑️
-              </button>
+              <div className="sticky-actions">
+                {!n.archived ? (
+                  <button
+                    className="nt-btn nt-archive"
+                    title="Archiver"
+                    onClick={() => askArchive(n.id)}
+                    disabled={meetingOn}
+                  >
+                     Archiver
+                  </button>
+                ) : (
+                  <button
+                    className="nt-btn nt-restore"
+                    title="Restaurer"
+                    onClick={() => restore(n.id)}
+                    disabled={meetingOn}
+                  >
+                    ↩️ Restaurer
+                  </button>
+                )}
+              </div>
             </div>
-            <textarea
-              value={n.text}
-              placeholder="Note…"
-              onChange={(e) => upd(n.id, { text: e.target.value })}
+
+            <input
+              className="sticky-title"
+              placeholder="Titre…"
+              value={n.title}
+              onChange={(e) => patch(n.id, { title: e.target.value.slice(0, 80) })}
               disabled={meetingOn}
             />
+            <textarea
+              className="sticky-text"
+              rows={2}
+              value={n.text}
+              placeholder="Note…"
+              onChange={(e) => patch(n.id, { text: e.target.value })}
+              disabled={meetingOn}
+            />
+            <div className="sticky-meta">
+              <span>{new Date(n.updatedAt ?? n.createdAt).toLocaleDateString()}</span>
+              {n.archived && <span className="nt-badge nt-badge-archived">Archivée</span>}
+            </div>
           </div>
         ))}
-        {list.length === 0 && <div className="nt-empty">Aucune note à afficher.</div>}
+        {filtered.length === 0 && <div className="nt-empty">Aucune note à afficher.</div>}
       </div>
-
-      {/* Modale de confirmation réutilisable */}
-      <ConfirmDialog
-        open={confirm.open}
-        message={confirm.message}
-        confirmLabel="Supprimer"
-        cancelLabel="Annuler"
-        onConfirm={confirm.confirm}
-        onCancel={confirm.cancel}
-      />
     </div>
   );
 }
@@ -231,7 +350,12 @@ function StickyNotesSection({ storageKey, meetingOn }: { storageKey: string; mee
    =============================== */
 export default function PlannerAgile() {
   const [rows, setRows] = useState<Task[]>(() => JSON.parse(JSON.stringify(seed)));
-  const [meetingOn, setMeetingOn] = useState(false);
+  const [meetingOn, setMeetingOn] = useState<boolean>(() => {
+    try { return localStorage.getItem("planner.agile.meeting") === "1"; } catch { return false; }
+  });
+
+  // 🔦 rétroprojecteur lié au mode réunion
+  useProjector(meetingOn);
 
   // Filtres
   const [q, setQ] = useState("");
@@ -240,15 +364,18 @@ export default function PlannerAgile() {
   const [fProgress, setFProgress] = useState<"Tous" | "0" | "25" | "50" | "75" | "100">("Tous");
   const [showArchived, setShowArchived] = useState(false);
 
-  // Création / suppression
+  // Création / archivage / édition
   const [createOpen, setCreateOpen] = useState(false);
-  const [adOpen, setAdOpen] = useState<{ open: boolean; id?: string; title?: string }>({ open: false });
-
-  // Édition
+  const [archOpen, setArchOpen] = useState<{ open: boolean; id?: string; title?: string }>({ open: false });
   const [edit, setEdit] = useState<{ open: boolean; task?: Task }>({ open: false });
 
-  // Admins/personnes (pour datalist + sélecteur)
-  const admins = useMemo(() => uniquePeople(rows), [rows]);
+  // Admins/personnes
+  // Admins/personnes = personnes des tâches ∪ avatars connus
+ const admins = useMemo(() => {
+   const set = new Set<string>(uniquePeople(rows));
+   Object.keys(ADMIN_AVATARS).forEach((n) => set.add(n));
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+ }, [rows]);
 
   // Recherche / filtres
   const filtered = useMemo(() => {
@@ -267,7 +394,14 @@ export default function PlannerAgile() {
         if (p < min) return false;
       }
       if (!text) return true;
-      const hay = [t.titre, t.admin, ...(Array.isArray(t.assignees) ? t.assignees : []), t.remarques, t.bloque, t.bloquePar]
+      const hay = [
+        t.titre,
+        t.admin,
+        ...(Array.isArray(t.assignees) ? t.assignees : []),
+        t.remarques,
+        t.bloque,
+        t.bloquePar,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -275,7 +409,7 @@ export default function PlannerAgile() {
     });
   }, [rows, q, fAdmin, fStatut, fProgress, showArchived]);
 
-  // Groupement par colonne (d’après filtered)
+  // Groupement par colonne
   const grouped = useMemo(() => {
     const map = new Map<ColKey, Task[]>();
     COLUMNS.forEach((c) => map.set(c.key, []));
@@ -305,27 +439,17 @@ export default function PlannerAgile() {
     dragId.current = null;
   };
 
-  // Actions archive/suppr
-  const askArchiveDelete = (t: Task) => setAdOpen({ open: true, id: t.id, title: t.titre });
+  // Archiver tâches
+  const askArchive = (t: Task) => setArchOpen({ open: true, id: t.id, title: t.titre });
   const doArchive = () => {
-    if (!adOpen.id) return;
+    if (!archOpen.id) return;
     setRows((prev) =>
-      prev.map((t) => (t.id === adOpen.id ? { ...t, archived: true, archivedAt: new Date().toISOString() } : t))
+      prev.map((t) => (t.id === archOpen.id ? { ...t, archived: true, archivedAt: new Date().toISOString() } : t))
     );
-    setAdOpen({ open: false });
-  };
-  const doDelete = () => {
-    if (!adOpen.id) return;
-    setRows((prev) => prev.filter((t) => t.id !== adOpen.id));
-    setAdOpen({ open: false });
+    setArchOpen({ open: false });
   };
 
-  const createTask = (t: Task) => {
-    setRows((prev) => [{ ...t }, ...prev]);
-    setCreateOpen(false);
-  };
-
-  // édition
+  // Édition
   const openEdit = (t: Task) => {
     if (meetingOn || t.archived) return;
     setEdit({ open: true, task: t });
@@ -334,14 +458,7 @@ export default function PlannerAgile() {
     setRows((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)));
     setEdit({ open: false });
   };
-  const askArchiveDeleteFromEdit = (t: Task) => {
-    setEdit({ open: false });
-    askArchiveDelete(t);
-  };
 
-  /* ===============================
-     UI
-     =============================== */
   const wrapperClasses = ["agile-wrap", "ft-fullbleed", meetingOn ? "meeting-on" : ""].join(" ");
   const [openPeopleId, setOpenPeopleId] = useState<string | null>(null);
 
@@ -352,7 +469,13 @@ export default function PlannerAgile() {
         <div className="ft-left">
           <button
             className={`ft-btn meeting-toggle ${meetingOn ? "is-on" : ""}`}
-            onClick={() => setMeetingOn((v) => !v)}
+            onClick={() => {
+              setMeetingOn((v) => {
+                const next = !v;
+                try { localStorage.setItem("planner.agile.meeting", next ? "1" : "0"); } catch {}
+                return next;
+              });
+            }}
             title="Basculer Mode réunion"
           >
             <span className="mt-dot" />
@@ -372,22 +495,23 @@ export default function PlannerAgile() {
           <select className="ft-select" value={fAdmin} onChange={(e) => setFAdmin(e.target.value as any)}>
             <option value="Tous">Toutes personnes</option>
             {admins.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
+              <option key={a} value={a}>{a}</option>
             ))}
           </select>
 
           <select className="ft-select" value={fStatut} onChange={(e) => setFStatut(e.target.value as any)}>
             <option value="Tous">Tous statuts</option>
             {STATUTS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
 
-          <select className="ft-select" value={fProgress} onChange={(e) => setFProgress(e.target.value as any)} title="Avancement minimal">
+          <select
+            className="ft-select"
+            value={fProgress}
+            onChange={(e) => setFProgress(e.target.value as any)}
+            title="Avancement minimal"
+          >
             <option value="Tous">Avancement ≥ 0%</option>
             <option value="0">≥ 0%</option>
             <option value="25">≥ 25%</option>
@@ -397,7 +521,11 @@ export default function PlannerAgile() {
           </select>
 
           <label className="nt-inline">
-            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+            />
             Afficher archivées
           </label>
         </div>
@@ -415,13 +543,18 @@ export default function PlannerAgile() {
         {COLUMNS.map((col) => {
           const list = grouped.get(col.key)!;
           return (
-            <section key={col.key} className={`kan-col col-${col.key}`} onDragOver={onDragOver} onDrop={onDropTo(col.key)}>
+            <section
+              key={col.key}
+              className={`kan-col col-${col.key}`}
+              onDragOver={onDragOver}
+              onDrop={onDropTo(col.key)}
+            >
               <header className={`kan-col__title is-${col.key}`}>
                 <h3>{col.title}</h3>
                 <span className="count">{list.length}</span>
               </header>
 
-              <div className="kan-col__list">
+              <div className="kan-cards">
                 {list.map((t) => {
                   const quick = (t as any).quickDetail as string | undefined;
                   const isArchived = !!t.archived;
@@ -500,11 +633,11 @@ export default function PlannerAgile() {
                         <div className="kan-card__actions">
                           {!isArchived ? (
                             <button
-                              className="btn danger icon"
-                              title="Archiver/Supprimer"
-                              onClick={(e) => { e.stopPropagation(); askArchiveDelete(t); }}
+                              className="btn icon"
+                              title="Archiver"
+                              onClick={(e) => { e.stopPropagation(); askArchive(t); }}
                             >
-                              🗑️
+                              📦
                             </button>
                           ) : (
                             <button
@@ -557,7 +690,7 @@ export default function PlannerAgile() {
         <StickyNotesSection storageKey="kanban-notes" meetingOn={meetingOn} />
       </div>
 
-      {/* Datalist Admins pour d’autres composants si besoin */}
+      {/* Datalist Admins */}
       <datalist id="admins-list">
         {admins.map((a) => (
           <option key={a} value={a} />
@@ -565,8 +698,13 @@ export default function PlannerAgile() {
       </datalist>
 
       {/* Modales */}
-      {createOpen && <CreateTaskModal admins={admins} onCreate={createTask} onClose={() => setCreateOpen(false)} />}
-
+      {createOpen && (
+        <CreateTaskModal
+          admins={admins}
+          onCreate={(t) => { setRows((prev) => [{ ...t }, ...prev]); setCreateOpen(false); }}
+          onClose={() => setCreateOpen(false)}
+        />
+      )}
       {edit.open && edit.task && (
         <EditTaskModal
           open={edit.open}
@@ -575,16 +713,19 @@ export default function PlannerAgile() {
           admins={admins}
           onSave={saveEdit}
           onClose={() => setEdit({ open: false })}
-          onAskArchiveDelete={askArchiveDeleteFromEdit}
+          onAskArchiveDelete={(t) => {
+            // ⚠️ “Delete” désactivé par politique: on ARCHIVE seulement
+            setRows(prev => prev.map(x => x.id === t.id ? { ...x, archived: true, archivedAt: new Date().toISOString() } : x));
+            setEdit({ open: false });
+          }}
         />
       )}
 
-      <ArchiveDeleteDialog
-        open={adOpen.open}
-        title={adOpen.title ?? "cette tâche"}
+      <ArchiveDialog
+        open={archOpen.open}
+        title={archOpen.title ?? "cette tâche"}
         onArchive={doArchive}
-        onDelete={doDelete}
-        onCancel={() => setAdOpen({ open: false })}
+        onCancel={() => setArchOpen({ open: false })}
       />
     </section>
   );

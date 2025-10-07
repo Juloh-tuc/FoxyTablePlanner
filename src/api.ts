@@ -1,44 +1,38 @@
-// src/api/tasks.ts
-import type { Task } from "../types";
-import { getTasksRepo, TASKS_STORAGE_KEY } from "./client";
+/* API front-only : délègue au repo localStorage */
+import type { Task } from "./types";
+import { createLocalTaskRepo, bootstrapFromSeed, migrateArchivedFields, STORAGE_KEY } from "./storage/taskRepo";
+import { seed } from "./data";
 
-const repo = getTasksRepo();
+const repo = createLocalTaskRepo();
 
-/** Tâches actives (archived = false) */
+/* Démarrage : migration + bootstrap si vide */
+migrateArchivedFields();
+bootstrapFromSeed(seed);
+
+/* Fonctions utilisées par tes pages */
 export async function fetchActiveTasks(): Promise<Task[]> {
   return repo.list({ archived: false });
 }
-
-/** Tâches archivées (archived = true) */
 export async function fetchArchivedTasks(): Promise<Task[]> {
   return repo.list({ archived: true });
 }
-
-/** Patch partiel d'une tâche */
 export async function patchTask(id: string, patch: Partial<Task>): Promise<Task> {
   return repo.patch(id, patch);
 }
-
-/** Upsert (création/mise à jour complète) */
 export async function upsertTask(task: Task): Promise<Task> {
   return repo.upsert(task);
 }
-
-/** Archiver (jamais supprimer) */
 export async function archiveTask(id: string, reason?: string): Promise<Task> {
   return repo.archive(id, reason);
 }
-
-/** Restaurer une tâche archivée */
 export async function restoreTask(id: string): Promise<Task> {
   return repo.restore(id);
 }
 
-/** Écoute des updates cross-onglets via localStorage */
+/* bonus: écoute des mises à jour cross-onglets */
 export function onTasksChanged(cb: () => void) {
-  if (typeof window === "undefined") return () => {};
   const handler = (e: StorageEvent) => {
-    if (e.key === TASKS_STORAGE_KEY) cb();
+    if (e.key === STORAGE_KEY) cb();
   };
   window.addEventListener("storage", handler);
   return () => window.removeEventListener("storage", handler);

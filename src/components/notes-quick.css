@@ -1,50 +1,237 @@
-.nq { margin-top: 1rem; }
-.nq__head{ display:flex; align-items:center; justify-content:space-between; margin-bottom: .5rem; }
+/* ============================
+   Notes Quick (notes-quick.css)
+   ============================ */
+
+/* ---------- Base ---------- */
+.nq { margin-top: 1rem; color:#111827; }
+
+/* --- En-tête --- */
+.nq__head{
+  display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:.5rem;
+}
 .nq__title{ margin:0; font-size:1rem; font-weight:800; color:#374151; }
 .nq__count{
   font-weight:700; border:1px solid #e5e7eb; background:#fff; border-radius:999px;
   padding:4px 10px; cursor:pointer;
 }
+.nq__count:hover{ background:#f9fafb; }
 
+/* --- Filtres (optionnels) --- */
+.nq__controls{
+  display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:.25rem 0 .5rem 0;
+}
+.nq__filter-input{
+  padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; min-width:200px; outline:0; background:#fff;
+}
+.nq__filter-input:focus{ box-shadow:0 0 0 3px rgba(167,139,250,.28); border-color:#c4b5fd; }
+.nq__select{
+  padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; outline:0;
+}
+.nq__btn{
+  padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; cursor:pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.nq__btn:hover{ background:#f9fafb; }
+.nq__btn.primary{ background:#7C3AED; border-color:#7C3AED; color:#fff; box-shadow:0 6px 16px rgba(124,58,237,.15); }
+.nq__btn.ghost{ background:transparent; }
+.nq__btn.link{ background:transparent; border:none; color:#6b21a8; text-decoration:underline; padding:0; }
+.nq__pill{
+  padding:2px 8px; border-radius:999px; border:1px solid #e5e7eb; font-size:.85rem; margin-left:.25rem;
+}
+
+/* --- Boîte principale --- */
 .nq__box{
   border:1px solid #e5e7eb; border-radius:12px; background:#fff;
   padding:10px; box-shadow: 0 1px 2px rgba(0,0,0,.05);
 }
 
-/* éditeur */
-.nq__editor{ display:flex; flex-direction:column; gap:8px; }
+/* ---------- Éditeur ---------- */
+.nq__editor{ display:flex; flex-direction:column; gap:8px; margin-bottom:.5rem; }
+.nq__title-input{
+  width:100%; padding:10px 12px; border:1px solid rgba(0,0,0,.08); border-radius:10px; font:inherit; background:#fff;
+}
+.nq__title-input:focus{ outline:none; box-shadow:0 0 0 3px rgba(167,139,250,.28); border-color:#c4b5fd; }
 .nq__textarea{
   width:100%; min-height:72px; max-height:220px; resize:vertical;
-  padding:10px 12px; border:1px solid rgba(0,0,0,.08); border-radius:10px; font:inherit;
-  background:#fff;
+  padding:10px 12px; border:1px solid rgba(0,0,0,.08); border-radius:10px; font:inherit; background:#fff;
 }
+.nq__textarea:focus{ outline:none; box-shadow:0 0 0 3px rgba(167,139,250,.28); border-color:#c4b5fd; }
 .nq__actions{ display:flex; align-items:center; gap:10px; justify-content:flex-end; }
 .nq__len{ color:#6b7280; font-size:12px; }
-.nq__btn{ padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; }
-.nq__btn.primary{ background:#7C3AED; border-color:#7C3AED; color:#fff; }
-.nq__btn.link{ background:transparent; border:none; color:#6b21a8; text-decoration:underline; padding:0; }
 
-/* liste compacte */
+/* ---------- Liste compacte (dashboard) ---------- */
 .nq__list{ list-style:none; padding:0; margin:8px 0 0 0; display:flex; flex-direction:column; gap:6px; }
 .nq__item{
   display:grid; grid-template-columns: 1fr auto; align-items:center; gap:8px;
   padding:6px 8px; border-radius:8px; background:#fafafa; border:1px solid #f3f4f6;
 }
+.nq__title-row{
+  display:flex; align-items:center; gap:8px; min-width:0;
+}
+.nq__note-title{
+  font-weight:700; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.nq__meta{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:#6b7280; font-size:.85rem;
+}
+.nq__date{ white-space:nowrap; }
+.nq__badge{
+  display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; border:1px solid #e5e7eb;
+  font-size:.75rem; font-weight:700; background:#f3f4f6; color:#374151;
+}
+.nq__badge--archived{ background:#fff1f2; border-color:#fecaca; color:#7a1c1c; }
+
+/* Corps de note limité à ~2 lignes AVEC scroll interne */
+.nq__body{
+  margin-top:2px;
+  max-height:3.2rem;      /* ≈ deux lignes */
+  overflow:auto;
+  line-height:1.4;
+}
 .nq__text{
-  display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; line-clamp:1;
-  overflow:hidden; font-weight:600;
+  white-space:pre-wrap;    /* conserve les retours à la ligne */
+  color:#111827;
+  font-weight:500;
 }
-.nq__remove{
-  background:#fee2e2; border:1px solid #fecaca; color:#7a1c1c;
-  padding:4px 8px; border-radius:8px; cursor:pointer;
+/* Variante une seule ligne maxi si tu veux (ajoute .is-one-line sur le conteneur) */
+.nq__body.is-one-line{ max-height:1.6rem; }
+
+/* Actions par ligne */
+.nq__row-actions{ display:flex; align-items:center; gap:6px; }
+.nq__icon-btn{
+  width:30px; height:30px; display:inline-grid; place-items:center;
+  border:1px solid #e5e7eb; border-radius:8px; background:#fff; cursor:pointer;
 }
-.nq__remove:hover{ background:#fff1f2; }
+.nq__icon-btn:hover{ background:#f9fafb; }
+.nq__archive{ background:#fff; border:1px solid #fecaca; color:#7a1c1c; }
+.nq__archive:hover{ background:#fff1f2; }
+.nq__restore{ background:#fff; border:1px solid #bbf7d0; color:#065f46; }
+.nq__restore:hover{ background:#ecfdf5; }
+
+/* Lien “plus…” */
 .nq__more{ text-align:right; }
 
-/* modal full list */
-.nq__full{ list-style:none; padding:0; margin: .5rem 0; display:flex; flex-direction:column; gap:8px; }
+/* ---------- Modale : overlay & panel ---------- */
+.cd-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(17,24,39,.45);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+}
+.cd-panel{
+  width: min(820px, 94vw);
+  max-height: 80vh;                  /* limite la hauteur globale de la modale */
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.12);
+  display: flex;                      /* layout colonne */
+  flex-direction: column;
+}
+.cd-panel h3{ margin: 0 0 8px; font-size: 1.05rem; }
+
+/* Corps scrollable À L’INTÉRIEUR de la modale */
+.nq__modal-body{
+  flex: 1 1 auto;
+  min-height: 0;                      /* indispensable pour scroll en flex */
+  overflow-y: auto;
+  margin: .5rem 0;
+  padding-right: 2px;                 /* marge pour la scrollbar */
+}
+
+/* Footer actions de modale (reste visible) */
+.cd-actions{
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  background: linear-gradient(180deg, rgba(255,255,255,0), #fff 40%);
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+.cd-btn{
+  padding: 8px 12px; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer;
+}
+.cd-btn:hover{ background:#f9fafb; }
+.cd-cancel{ color:#374151; }
+.cd-confirm{
+  background:#7C3AED; border-color:#7C3AED; color:#fff; box-shadow: 0 6px 16px rgba(124,58,237,.15);
+}
+
+/* Scrollbar discrète dans la zone scrollable de la modale */
+.nq__modal-body::-webkit-scrollbar{ width: 10px; }
+.nq__modal-body::-webkit-scrollbar-thumb{
+  background: #e3defc; border-radius: 999px; border: 2px solid #fff;
+}
+.nq__modal-body::-webkit-scrollbar-track{ background: #faf9ff; border-radius: 999px; }
+
+/* ---------- Liste complète dans la modale ---------- */
+.nq__full{
+  list-style:none; padding:0; margin:.5rem 0;
+  display:flex; flex-direction:column; gap:8px;
+}
 .nq__row{
   display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center;
   padding:8px 10px; border-radius:10px; background:#fafafa; border:1px solid #e5e7eb;
 }
-.nq__empty{ color:#6b7280; }
+.nq__row .nq__body{ max-height:5.6rem; } /* un peu plus de place en modale */
+.nq__empty{ color:#6b7280; text-align:center; padding:12px 4px; }
+
+/* ---------- Utilitaires ---------- */
+.nq__muted{ color:#6b7280; }
+.nq__sr{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+/* === Scroll fiable à l’intérieur de la grille de post-it === */
+.notes-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  max-height: 56vh;       /* limite la zone */
+  overflow-y: auto;        /* ← scroll vertical interne */
+  overflow-x: hidden;
+  align-content: start;    /* évite des comportements bizarres avec CSS Grid */
+  padding-right: 4px;
+}
+
+/* === Bandeau blanc sous les actions : on supprime === */
+.sticky-head{ background: transparent !important; }
+.sticky-actions{
+  background: transparent !important;
+  border-top: 0 !important;     /* ← ce qui te gênait */
+  box-shadow: none !important;
+}
+
+/* Boutons d’action : pas d’aplat blanc qui déborde */
+.sticky .nt-btn{
+  background: rgba(255,255,255,.14);
+  border-color: rgba(0,0,0,.15);
+}
+.sticky .nt-btn:hover{ background: rgba(255,255,255,.24); }
+
+/* Assure que le texte des champs reste lisible sur les post-it colorés */
+.sticky .sticky-title,
+.sticky .sticky-text{
+  background: rgba(255,255,255,.92);
+  color:#0f172a;
+}
+
+/* IMPORTANT : si tu as ailleurs une règle générique .sticky textarea {...}
+   qui met min-height:120px etc., laisse-la, mais garde cette priorité : */
+.sticky .sticky-text{
+  max-height: 3.2rem;   /* ~2 lignes */
+  overflow: auto;
+  resize: vertical;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 700px){
+  .nq__controls{ gap:.4rem; }
+  .nq__filter-input{ min-width: 160px; }
+  .nq__row{ grid-template-columns: 1fr; }
+  .nq__row-actions{ justify-content:flex-end; }
+}

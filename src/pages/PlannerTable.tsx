@@ -1,29 +1,46 @@
 // src/pages/PlannerTable.tsx
 import { useEffect, useMemo, useState } from "react";
-import { seed } from "../data";
 import type { Task, Statut, Etiquette } from "../types";
 
 import "../styles/planner-common.css";
 import "../styles/planner-table.css";
+import "../styles/admin-cell.css";
 import "../styles/avatars.css";
 
 import TaskDetailModal from "../components/TaskDetailModal";
+import AddTaskModal from "../components/AddTaskModal";
 import EditTaskModal from "../components/EditTaskModal";
+import { useProjector } from "../hooks/useProjector";
+import AdminCell from "../components/AdminCell";
+
+// API front (localStorage)
+import {
+  fetchActiveTasks,
+  fetchArchivedTasks,
+  patchTask,
+  archiveTask as apiArchive,
+  restoreTask as apiRestore,
+  onTasksChanged,
+  upsertTask,
+} from "../api";
 
 /* =========================
-   Constantes / Utils
+   Types / Constantes
    ========================= */
-const STATUTS: Statut[] = ["Terminé", "En cours", "En attente", "Bloqué", "Pas commencé"];
-const PRESET_TAGS: Etiquette[] = ["Web","Front-BO","Back-FO","Front-FO","Back-BO","API","Design","Mobile","Autre"];
-const PRESET_ADMINS = ["Simon","Titouan","Léo","Myriam","Anaïs","Julie","Mohamed"];
+type PlannerTableProps = { readOnly?: boolean };
+type ConfirmState = { open: boolean; taskId?: string; label?: string };
 
-const short = (iso?: string) => (iso ? iso.slice(0, 10) : "—");
+const STATUTS: Statut[] = ["Terminé", "En cours", "En attente", "Bloqué", "Pas commencé"];
+const PRESET_TAGS: Etiquette[] = ["Web", "Front-BO", "Back-FO", "Front-FO", "Back-BO", "API", "Design", "Mobile", "Autre"];
+const PRESET_ADMINS = ["Simon", "Titouan", "Léo", "Myriam", "Anaïs", "Julie", "Mohamed"];
+
+const short = (iso?: string | null) => (iso ? String(iso).slice(0, 10) : "—");
 
 const uniqueAdmins = (tasks: Task[]) => {
   const s = new Set<string>();
-  tasks.forEach(t => {
+  tasks.forEach((t) => {
     if (t.admin) s.add(t.admin);
-    if (Array.isArray(t.assignees)) t.assignees.forEach(a => a && s.add(a));
+    if (Array.isArray(t.assignees)) t.assignees.forEach((a) => a && s.add(a));
   });
   return Array.from(s);
 };
@@ -32,52 +49,19 @@ const slug = (s: string) =>
   (s || "")
     .toLowerCase()
     .normalize("NFD")
-    // @ts-ignore: unicode classes may not be supported in some TS configs
+    // @ts-ignore
     .replace(/\p{Diacritic}/gu, "")
     .replace(/\s+/g, "-");
 
-const prioClass = (p?: Task["priorite"]) =>
-  p === "Faible" ? "prio-low" : p === "Élevé" ? "prio-high" : "prio-medium";
+const prioClass = (p?: Task["priorite"]) => (p === "Faible" ? "prio-low" : p === "Élevé" ? "prio-high" : "prio-medium");
 
 /* =========================
-   Avatars
-   ========================= */
-const ADMIN_AVATARS: Record<string, string> = {
-  Julie: "Foxy_Julie.png",
-  Léo: "léo_foxy.png",
-  Mohamed: "mohamed_foxy.png",
-  Myriam: "myriam_foxy.png",
-  Simon: "simon_foxy.png",
-  Titouan: "titouan_foxy.png",
-  // "Anaïs": "anais_foxy.png",
-};
-const initials = (name: string) =>
-  (name || "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? "")
-    .join("");
-const avatarUrlFor = (name?: string | null) => {
-  if (!name) return null;
-  const file = ADMIN_AVATARS[name.trim()];
-  return file ? `/avatars/${file}` : null;
-};
-
-/* =========================
-   Props + états auxiliaires
-   ========================= */
-type PlannerTableProps = { readOnly?: boolean };
-type ConfirmState = { open: boolean; taskId?: string; label?: string };
-
-/* =========================
-   Modales internes (confirm + archivées)
+   Dialogues
    ========================= */
 function ConfirmDialog3({
-  open, title, message, onArchive, onDelete, onCancel,
+  open, title, message, onArchive, onCancel,
 }: {
-  open: boolean; title: string; message: string;
-  onArchive: () => void; onDelete: () => void; onCancel: () => void;
+  open: boolean; title: string; message: string; onArchive: () => void; onCancel: () => void;
 }) {
   if (!open) return null;
   return (
@@ -87,7 +71,6 @@ function ConfirmDialog3({
         <p className="ft-modal-text">{message}</p>
         <div className="ft-modal-actions">
           <button className="ft-btn" onClick={onArchive}>Archiver</button>
-          <button className="ft-btn danger" onClick={onDelete}>Supprimer</button>
           <button className="ft-btn ghost" onClick={onCancel}>Annuler</button>
         </div>
       </div>
@@ -96,16 +79,13 @@ function ConfirmDialog3({
 }
 
 function ArchivedTasksModal({
-  open, tasks, onRestore, onDelete, onClose,
-}: {
-  open: boolean; tasks: Task[]; onRestore: (taskId: string) => void;
-  onDelete: (taskId: string) => void; onClose: () => void;
-}) {
+  open, tasks, onRestore, onClose,
+}: { open: boolean; tasks: Task[]; onRestore: (taskId: string) => void; onClose: () => void; }) {
   const [q, setQ] = useState("");
   const [admin, setAdmin] = useState<string | "Tous">("Tous");
 
   const admins = useMemo(
-    () => Array.from(new Set(tasks.flatMap(t => [t.admin, ...(t.assignees ?? [])]).filter(Boolean))) as string[],
+    () => Array.from(new Set(tasks.flatMap((t) => [t.admin, ...(t.assignees ?? [])]).filter(Boolean))) as string[],
     [tasks]
   );
 
@@ -114,7 +94,7 @@ function ArchivedTasksModal({
     return tasks
       .filter((t) => (admin === "Tous" ? true : t.admin === admin || (t.assignees ?? []).includes(admin)))
       .filter((t) => {
-        const hay = `${t.titre} ${t.admin ?? ""} ${(t.assignees ?? []).join(" ")} ${t.priorite ?? ""} ${t.bloque ?? ""} ${t.bloquePar ?? ""} ${(t.remarques ?? "")}`.toLowerCase();
+        const hay = `${t.titre} ${t.admin ?? ""} ${(t.assignees ?? []).join(" ")} ${t.priorite ?? ""} ${t.remarques ?? ""}`.toLowerCase();
         return qn ? hay.includes(qn) : true;
       })
       .sort((a, b) => (b.archivedAt || "").localeCompare(a.archivedAt || ""));
@@ -132,38 +112,36 @@ function ArchivedTasksModal({
         <div className="ft-arch-toolbar">
           <div className="ft-input-wrap">
             <span className="ft-input-ico">🔎</span>
-            <input
-              className="ft-input"
-              placeholder="Rechercher une tâche archivée…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
+            <input className="ft-input" placeholder="Rechercher une tâche archivée…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           <select className="ft-select" value={admin} onChange={(e) => setAdmin(e.target.value as any)}>
             <option value="Tous">Toutes personnes</option>
-            {admins.map((a) => <option key={a} value={a}>{a}</option>)}
+            {admins.map((a) => (<option key={a} value={a}>{a}</option>))}
           </select>
         </div>
 
         <div className="ft-arch-list">
-          {list.length ? list.map((t) => (
-            <div key={t.id} className="ft-arch-item">
-              <div className="ft-arch-main">
-                <div className="ft-arch-title">{t.titre}</div>
-                <div className="ft-arch-meta">
-                  <span>{t.admin ?? "—"}</span>
-                  <span>•</span>
-                  <span className={`badge badge-${slug(t.statut)}`}>{t.statut}</span>
-                  <span>•</span>
-                  <span>Archivé le {short(t.archivedAt ?? undefined)}</span>
+          {list.length ? (
+            list.map((t) => (
+              <div key={t.id} className="ft-arch-item">
+                <div className="ft-arch-main">
+                  <div className="ft-arch-title">{t.titre}</div>
+                  <div className="ft-arch-meta">
+                    <span>{t.admin ?? "—"}</span>
+                    <span>•</span>
+                    <span className={`badge badge-${slug(t.statut)}`}>{t.statut}</span>
+                    <span>•</span>
+                    <span>Archivé le {short(t.archivedAt ?? undefined)}</span>
+                  </div>
+                </div>
+                <div className="ft-arch-actions">
+                  <button className="ft-btn" onClick={() => onRestore(t.id)}>Restaurer</button>
                 </div>
               </div>
-              <div className="ft-arch-actions">
-                <button className="ft-btn" onClick={() => onRestore(t.id)}>Restaurer</button>
-                <button className="ft-btn danger" onClick={() => onDelete(t.id)}>Supprimer</button>
-              </div>
-            </div>
-          )) : <div className="ft-empty">Aucune tâche ne correspond.</div>}
+            ))
+          ) : (
+            <div className="ft-empty">Aucune tâche ne correspond.</div>
+          )}
         </div>
 
         <div className="ft-modal-actions end">
@@ -180,7 +158,6 @@ function ArchivedTasksModal({
 const byId = (tasks: Task[]) => Object.fromEntries(tasks.map((t) => [t.id, t]));
 const uniq = <T,>(arr: T[]) => Array.from(new Set(arr));
 
-/** Une tâche peut-elle commencer ? => toutes ses deps sont "Terminé" */
 const canStart = (t: Task, all: Task[]) => {
   const map = byId(all);
   const deps = t.dependsOn ?? [];
@@ -188,23 +165,20 @@ const canStart = (t: Task, all: Task[]) => {
   return deps.every((id) => map[id]?.statut === "Terminé");
 };
 
-/** Maintient la symétrie A.blocks ↔ B.dependsOn autour de la tâche mise à jour */
 function syncGraph(all: Task[], updated: Task): Task[] {
   const map = new Map(all.map((t) => [t.id, { ...t }]));
   const u = { ...updated };
   u.dependsOn = uniq((u.dependsOn ?? []).filter((id) => id !== u.id));
   u.blocks = uniq((u.blocks ?? []).filter((id) => id !== u.id));
 
-  // Nettoyage des liens obsolètes par rapport à u
+  // Nettoyage des liens croisés obsolètes
   for (const t of map.values()) {
     if (t.id === u.id) continue;
-    // si t.dependsOn contient u.id mais u ne bloque plus t => retire
     t.dependsOn = (t.dependsOn ?? []).filter((id) => !(id === u.id && !(u.blocks ?? []).includes(t.id)));
-    // si t.blocks contient u.id mais u ne dépend plus de t => retire
     t.blocks = (t.blocks ?? []).filter((id) => !(id === u.id && !(u.dependsOn ?? []).includes(t.id)));
   }
 
-  // Ajoute les nouveaux liens
+  // Appliquer les miroirs à partir de u
   for (const bid of u.blocks ?? []) {
     const b = map.get(bid);
     if (b) b.dependsOn = uniq([...(b.dependsOn ?? []), u.id]);
@@ -218,22 +192,60 @@ function syncGraph(all: Task[], updated: Task): Task[] {
   return Array.from(map.values());
 }
 
+/* Persistance multi-items (graph) */
+async function persistGraphChanges(before: Task[], after: Task[]) {
+  const beforeMap = new Map(before.map((t) => [t.id, t]));
+  const patchPromises: Promise<any>[] = [];
+
+  for (const t of after) {
+    const b = beforeMap.get(t.id);
+    if (!b) continue;
+    if (JSON.stringify(b) !== JSON.stringify(t)) {
+      const { id, ...payload } = t;
+      patchPromises.push(patchTask(id, payload));
+    }
+  }
+  try { await Promise.all(patchPromises); } catch (e) { console.error("persistGraphChanges:", e); }
+}
+
+/* =========================
+   Ancrage popover
+   ========================= */
+function computeAnchor(e: any, popoverWidth = 420, popoverHeight = 360) {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let left = r.left;
+  if (left + popoverWidth > vw - 8) left = Math.max(8, vw - popoverWidth - 8);
+
+  const spaceBelow = vh - r.bottom;
+  const dir: "down" | "up" = spaceBelow >= popoverHeight + 12 ? "down" : "up";
+
+  let top = dir === "down" ? r.bottom + 6 : r.top - popoverHeight - 6;
+  if (top < 8) top = 8;
+  if (top + popoverHeight > vh - 8) top = Math.max(8, vh - popoverHeight - 8);
+
+  return { left, top, width: r.width, dir };
+}
+
 /* =========================
    Composant principal
    ========================= */
 export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
-  const [tasks, setTasks] = useState<Task[]>(() => JSON.parse(JSON.stringify(seed)) as Task[]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const selectedTask = useMemo(
-    () => tasks.find((t) => t.id === selectedTaskId) ?? null,
-    [tasks, selectedTaskId]
-  );
+  const selectedTask = useMemo(() => tasks.find((t) => t.id === selectedTaskId) ?? null, [tasks, selectedTaskId]);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  // bouton Ajouter
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Mode réunion
   const [meetingOn, setMeetingOn] = useState<boolean>(() => {
     try { return localStorage.getItem("planner.table.meeting") === "1"; } catch { return false; }
   });
+  useProjector(meetingOn);
 
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
   const [archOpen, setArchOpen] = useState(false);
@@ -245,17 +257,26 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
   // Étiquettes
   const [tagPickerFor, setTagPickerFor] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState<Etiquette[]>([]);
+  const [newTag, setNewTag] = useState("");
+  const [tagAnchor, setTagAnchor] = useState<{ left: number; top: number; width: number; dir: "down" | "up" } | null>(null);
 
-  // Admin/personnes (nouveau design)
-  const [peoplePickerFor, setPeoplePickerFor] = useState<string | null>(null);
-  const [peopleDraft, setPeopleDraft] = useState<string[]>([]);
-  const [adminDraft, setAdminDraft] = useState<string>(""); // radio admin
-  const [peopleSearch, setPeopleSearch] = useState("");
+  // options d’étiquettes = presets + celles déjà utilisées
+  const allTags = useMemo<Etiquette[]>(() => {
+    const used = tasks.flatMap((t) => t.etiquettes ?? []);
+    return Array.from(new Set<Etiquette>([...PRESET_TAGS, ...used]));
+  }, [tasks]);
 
-  // Sélecteur “Bloque”
+  // BLOQUE (éditeur)
   const [blockPickerFor, setBlockPickerFor] = useState<string | null>(null);
   const [blockDraft, setBlockDraft] = useState<string[]>([]);
   const [blockSearch, setBlockSearch] = useState("");
+  const [blockAnchor, setBlockAnchor] = useState<{ left: number; top: number; width: number; dir: "down" | "up" } | null>(null);
+
+  // BLOQUÉ PAR (éditeur)
+  const [depPickerFor, setDepPickerFor] = useState<string | null>(null);
+  const [depDraft, setDepDraft] = useState<string[]>([]);
+  const [depSearch, setDepSearch] = useState("");
+  const [depAnchor, setDepAnchor] = useState<{ left: number; top: number; width: number; dir: "down" | "up" } | null>(null);
 
   // Filtres
   const [q, setQ] = useState("");
@@ -264,7 +285,7 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
   const [adminsOpen, setAdminsOpen] = useState(false);
   const [archFilter, setArchFilter] = useState<"actives" | "archivees" | "toutes">("actives");
 
-  // Admins: presets + dynamiques
+  // Admins
   const admins = useMemo(() => {
     const dyn = uniqueAdmins(tasks);
     return Array.from(new Set([...PRESET_ADMINS, ...dyn]));
@@ -275,6 +296,77 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
 
   const idMap = useMemo(() => byId(tasks), [tasks]);
 
+  // Chargement initial
+  useEffect(() => {
+    (async () => {
+      try {
+        const [actives, archived] = await Promise.all([fetchActiveTasks(), fetchArchivedTasks()]);
+        setTasks([...actives, ...archived]);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
+  // Sync cross-onglets
+  useEffect(() => {
+    const off = onTasksChanged(async () => {
+      const [actives, archived] = await Promise.all([fetchActiveTasks(), fetchArchivedTasks()]);
+      setTasks([...actives, ...archived]);
+    });
+    return off;
+  }, []);
+
+  // Fermer popovers si RO/meeting
+  useEffect(() => {
+    if (readOnly || meetingOn) {
+      setEditingTitleFor(null);
+      setTagPickerFor(null);
+      setTagAnchor(null);
+      setBlockPickerFor(null);
+      setBlockAnchor(null);
+      setDepPickerFor(null);
+      setDepAnchor(null);
+    }
+  }, [readOnly, meetingOn]);
+
+  // Fermer Étiquettes sur Escape / resize / scroll
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") { setTagPickerFor(null); setTagDraft([]); setTagAnchor(null); }
+    }
+    function onWinChange() {
+      if (tagAnchor) { setTagPickerFor(null); setTagDraft([]); setTagAnchor(null); }
+    }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onWinChange);
+    window.addEventListener("scroll", onWinChange, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onWinChange);
+      window.removeEventListener("scroll", onWinChange, true);
+    };
+  }, [tagAnchor]);
+
+  // Fermer "Bloqué par" sur Escape / resize / scroll
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") { setDepPickerFor(null); setDepDraft([]); setDepAnchor(null); }
+    }
+    function onWinChange() {
+      if (depAnchor) { setDepPickerFor(null); setDepDraft([]); setDepAnchor(null); }
+    }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onWinChange);
+    window.addEventListener("scroll", onWinChange, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onWinChange);
+      window.removeEventListener("scroll", onWinChange, true);
+    };
+  }, [depAnchor]);
+
+  // Filtrage
   const filtered = useMemo(() => {
     const qn = q.trim().toLowerCase();
     return tasks.filter((t) => {
@@ -284,206 +376,45 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
 
       if (adminSel.length > 0) {
         const inAdmin = t.admin && adminSel.includes(t.admin);
-        const inAssignees = (t.assignees ?? []).some(a => adminSel.includes(a));
+        const inAssignees = (t.assignees ?? []).some((a) => adminSel.includes(a));
         if (!inAdmin && !inAssignees) return false;
       }
 
       if (!qn) return true;
+
+      const blockTitles = (t.blocks ?? []).map((id) => idMap[id]?.titre ?? "").join(" ");
+      const dependTitles = (t.dependsOn ?? []).map((id) => idMap[id]?.titre ?? "").join(" ");
+
       const hay = [
         t.titre || "",
         t.admin || "",
         ...(t.assignees ?? []),
         t.priorite || "",
-        t.bloque || "",
-        t.bloquePar || "",
+        blockTitles,
+        dependTitles,
         t.remarques || "",
         ...(t.etiquettes || []),
-      ].join(" ").toLowerCase();
+      ]
+        .join(" ")
+        .toLowerCase();
       return hay.includes(qn);
     });
-  }, [tasks, q, statut, adminSel, archFilter]);
+  }, [tasks, q, statut, adminSel, archFilter, idMap]);
 
   const archivedList = useMemo(() => tasks.filter((t) => t.archived), [tasks]);
-
-  // Fermer les popovers en RO/meeting
-  useEffect(() => {
-    if (readOnly || meetingOn) {
-      setEditingTitleFor(null);
-      setTagPickerFor(null);
-      setPeoplePickerFor(null);
-      setBlockPickerFor(null);
-    }
-  }, [readOnly, meetingOn]);
-
-  /* ====== Actions ====== */
-  const requestDeleteOrArchive = (taskId: string) => {
-    if (readOnly || meetingOn) return;
-    const t = tasks.find((x) => x.id === taskId);
-    setConfirm({ open: true, taskId, label: t?.titre ?? "cette tâche" });
-  };
-
-  const archiveById = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((x) =>
-        x.id === taskId ? { ...x, archived: true, archivedAt: new Date().toISOString() } : x
-      )
-    );
-    if (selectedTaskId === taskId) setSelectedTaskId(null);
-    setConfirm({ open: false });
-  };
-
-  const restoreById = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((x) => (x.id === taskId ? { ...x, archived: false, archivedAt: null } : x))
-    );
-  };
-
-  const deleteById = (taskId: string) => {
-    setTasks((prev) => prev.filter((x) => x.id !== taskId));
-    if (selectedTaskId === taskId) setSelectedTaskId(null);
-    setConfirm({ open: false });
-  };
-
-  const handleOpenDetailById = (taskId: string) => setSelectedTaskId(taskId);
-
-  const handleOpenEditById = (taskId: string) => {
-    if (readOnly || meetingOn) return;
-    const t = tasks.find((x) => x.id === taskId);
-    if (t) setEditingTask(t);
-  };
-
-  const handleSaveEdit = (updated: Task) => {
-    const safeTitle = (updated.titre ?? "").slice(0, 80);
-    const safeRemarks = (updated.remarques ?? "").slice(0, 250);
-
-    const tmp: Task = { ...updated, titre: safeTitle, remarques: safeRemarks };
-
-    // règle deps non terminées => statut Bloqué (sauf Terminé)
-    const depsOk = canStart(tmp, tasks);
-    if (!depsOk && tmp.statut !== "Terminé") {
-      tmp.statut = "Bloqué";
-    }
-
-    setTasks((prev) => {
-      const merged = prev.map((x) => (x.id === tmp.id ? { ...x, ...tmp } : x));
-      return syncGraph(merged, { ...prev.find((x) => x.id === tmp.id)!, ...tmp });
-    });
-    setEditingTask(null);
-  };
-
-  // ====== Admins inline (nouveau design “pastilles + menu déroulant”) ======
-  const openPeoplePicker = (t: Task) => {
-    if (readOnly || meetingOn) return;
-    const currentAssignees = Array.isArray(t.assignees) && t.assignees.length ? [...t.assignees] : (t.admin ? [t.admin] : []);
-    setPeopleDraft(currentAssignees);
-    setAdminDraft(t.admin ?? (currentAssignees[0] ?? ""));
-    setPeopleSearch("");
-    setPeoplePickerFor(t.id);
-  };
-
-  const toggleDraftPerson = (name: string) => {
-    setPeopleDraft((prev) => {
-      const has = prev.includes(name);
-      const next = has ? prev.filter((n) => n !== name) : [...prev, name];
-      // si l’admin a été décoché, déplacer adminDraft si besoin
-      if (!has && !adminDraft) {
-        setAdminDraft(name);
-      }
-      if (has && adminDraft === name) {
-        setAdminDraft(next[0] ?? "");
-      }
-      return next;
-    });
-  };
-
-  const savePeople = () => {
-    if (!peoplePickerFor) return;
-    const first = adminDraft || peopleDraft[0] || "";
-    setTasks((prev) =>
-      prev.map((x) =>
-        x.id === peoplePickerFor
-          ? { ...x, admin: first, assignees: [...new Set(peopleDraft.length ? peopleDraft : (first ? [first] : []))] }
-          : x
-      )
-    );
-    setPeoplePickerFor(null);
-    setPeopleDraft([]);
-    setAdminDraft("");
-    setPeopleSearch("");
-  };
-  const cancelPeople = () => {
-    setPeoplePickerFor(null);
-    setPeopleDraft([]);
-    setAdminDraft("");
-    setPeopleSearch("");
-  };
-
-  // ====== Étiquettes ======
-  const openTagPicker = (t: Task) => {
-    if (readOnly || meetingOn) return;
-    setTagPickerFor(t.id);
-    setTagDraft(Array.isArray(t.etiquettes) ? [...t.etiquettes] : []);
-  };
-  const toggleDraftTag = (label: Etiquette) => {
-    setTagDraft((prev) => (prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]));
-  };
-  const saveTags = () => {
-    if (!tagPickerFor) { setTagDraft([]); return; }
-    setTasks((prev) =>
-      prev.map<Task>((x) => (x.id === tagPickerFor ? { ...x, etiquettes: [...tagDraft] } : x))
-    );
-    setTagPickerFor(null);
-    setTagDraft([]);
-  };
-  const cancelTags = () => {
-    setTagPickerFor(null);
-    setTagDraft([]);
-  };
-
-  // ====== BLOQUE (sélecteur de tâches) ======
-  const openBlockPicker = (t: Task) => {
-    if (readOnly || meetingOn) return;
-    setBlockDraft([...(t.blocks ?? [])]); // ids
-    setBlockSearch("");
-    setBlockPickerFor(t.id);
-  };
-  const toggleDraftBlock = (targetId: string) => {
-    setBlockDraft((prev) => (prev.includes(targetId) ? prev.filter(id => id !== targetId) : [...prev, targetId]));
-  };
-  const saveBlocks = () => {
-    if (!blockPickerFor) return;
-    setTasks((prev) => {
-      const current = prev.find(x => x.id === blockPickerFor)!;
-      const updated: Task = { ...current, blocks: uniq(blockDraft) };
-      const merged = prev.map(x => x.id === updated.id ? updated : x);
-      return syncGraph(merged, updated); // met à jour automatiquement dependsOn
-    });
-    setBlockPickerFor(null);
-    setBlockDraft([]);
-    setBlockSearch("");
-  };
-  const cancelBlocks = () => {
-    setBlockPickerFor(null);
-    setBlockDraft([]);
-    setBlockSearch("");
-  };
-
-  const wrapperClasses = [
-    "page-wrap",
-    "ft-wrap",
-    "ft-fullbleed",
-    meetingOn ? "meeting-on" : "",
-    readOnly ? "is-readonly" : "",
-  ].filter(Boolean).join(" ");
 
   /* =========================
      Rendu
      ========================= */
+  const wrapperClasses = ["page-wrap", "ft-wrap", "ft-fullbleed", meetingOn ? "meeting-on" : "", readOnly ? "is-readonly" : ""]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div className={wrapperClasses}>
       {meetingOn && <div className="meeting-badge" aria-live="polite">Mode réunion ON</div>}
 
-      {/* ===== Toolbar ===== */}
+      {/* Toolbar */}
       <div className="ft-toolbar">
         <div className="ft-left">
           <button
@@ -513,10 +444,10 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
 
           <select className="ft-select" value={statut} onChange={(e) => setStatut(e.target.value as any)} disabled={meetingOn} aria-disabled={meetingOn}>
             <option value="Tous">Tous statuts</option>
-            {STATUTS.map((s) => <option key={s} value={s}>{s}</option>)}
+            {STATUTS.map((s) => (<option key={s} value={s}>{s}</option>))}
           </select>
 
-          {/* === Filtre multi-admins (toolbar) === */}
+          {/* Filtre multi-admins */}
           <div className="admin-filter">
             <button
               type="button"
@@ -529,16 +460,11 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
             >
               {adminSel.length === 0 ? "Toutes personnes" : `${adminSel.length} sélection(s)`}
               {adminSel.length > 0 && <span className="ft-pill">{adminSel.length}</span>}
-              <span aria-hidden style={{marginLeft:6}}>▾</span>
+              <span aria-hidden style={{ marginLeft: 6 }}>▾</span>
             </button>
 
             {adminsOpen && (
-              <div
-                className="af-popover"
-                role="dialog"
-                aria-label="Filtre personnes"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <div className="af-popover" role="dialog" aria-label="Filtre personnes" onClick={(e) => e.stopPropagation()}>
                 <div className="af-head">
                   <strong>Personnes</strong>
                   <div className="spacer" />
@@ -550,11 +476,7 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                 <div className="af-list">
                   {admins.map((a) => (
                     <label key={a} className="af-row">
-                      <input
-                        type="checkbox"
-                        checked={adminSel.includes(a)}
-                        onChange={() => toggleAdminFilter(a)}
-                      />
+                      <input type="checkbox" checked={adminSel.includes(a)} onChange={() => toggleAdminFilter(a)} />
                       <span>{a}</span>
                     </label>
                   ))}
@@ -563,9 +485,7 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
 
                 <div className="af-actions">
                   <button className="ft-btn small" onClick={() => setAdminsOpen(false)}>Fermer</button>
-                  {adminSel.length > 0 && (
-                    <button className="ft-btn small ghost" onClick={() => setAdminSel([])}>Effacer</button>
-                  )}
+                  {adminSel.length > 0 && <button className="ft-btn small ghost" onClick={() => setAdminSel([])}>Effacer</button>}
                 </div>
               </div>
             )}
@@ -580,6 +500,16 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
         </div>
 
         <div className="ft-right">
+          {/* ➕ Ajouter une tâche */}
+          <button
+            className="ft-btn add-btn"
+            onClick={() => setCreateOpen(true)}
+            disabled={meetingOn || readOnly}
+            title="Ajouter une tâche"
+          >
+            <span>Ajouter</span>
+          </button>
+
           <button className="ft-btn ghost" onClick={() => setArchOpen(true)} disabled={meetingOn}>
             Archivées <span className="ft-pill">{archivedList.length}</span>
           </button>
@@ -587,7 +517,7 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
         </div>
       </div>
 
-      {/* ===== Tableau ===== */}
+      {/* Tableau */}
       <div className="table-wrap">
         <table className="table ft-table">
           <thead>
@@ -609,41 +539,27 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
             {filtered.map((t) => {
               const isEditingTitle = editingTitleFor === t.id;
               const isTagOpen = tagPickerFor === t.id;
-              const isPeopleOpen = peoplePickerFor === t.id;
-              const isBlockOpen = blockPickerFor === t.id;
 
               const remarks = (t.remarques ?? "").toString();
               const tags = t.etiquettes ?? [];
-
-              const people = (t.assignees && t.assignees.length ? t.assignees : (t.admin ? [t.admin] : []));
-              const adminName = t.admin || people[0] || "";
               const rest = Math.max(tags.length - 3, 0);
 
               // Choix pour “Bloque”
               const blockChoices = tasks
-                .filter(x => !x.archived && x.id !== t.id)
-                .filter(x => (x.titre || "").toLowerCase().includes(blockSearch.trim().toLowerCase()))
+                .filter((x) => !x.archived && x.id !== t.id)
+                .filter((x) => (x.titre || "").toLowerCase().includes(blockSearch.trim().toLowerCase()))
                 .sort((a, b) => (a.titre || "").localeCompare(b.titre || ""));
 
-              const blocksTitles = (t.blocks ?? []).map(id => idMap[id]?.titre).filter(Boolean) as string[];
-              const dependsTitles = (t.dependsOn ?? []).map(id => idMap[id]?.titre).filter(Boolean) as string[];
-
-              // Pastilles (avatars) à afficher
-              const maxShown = 3;
-              const shown = people.slice(0, maxShown);
-              const hiddenCount = Math.max(people.length - maxShown, 0);
+              const blocksTitles = (t.blocks ?? []).map((id) => idMap[id]?.titre).filter(Boolean) as string[];
+              const dependsTitles = (t.dependsOn ?? []).map((id) => idMap[id]?.titre).filter(Boolean) as string[];
 
               return (
                 <tr key={t.id} aria-disabled={meetingOn}>
-                  {/* Tâche (link + rename) */}
+                  {/* Tâche */}
                   <td className="col-titre">
                     {!isEditingTitle ? (
                       <div className="title-cell">
-                        <button
-                          className="title-link"
-                          onClick={() => handleOpenDetailById(t.id)}
-                          aria-label={`Ouvrir détails pour « ${t.titre || "Tâche"} »`}
-                        >
+                        <button className="title-link" onClick={() => setSelectedTaskId(t.id)} aria-label={`Ouvrir détails pour « ${t.titre || "Tâche"} »`}>
                           <span className="title-text">{t.titre || "—"}</span>
                           <span className="chev" aria-hidden>›</span>
                         </button>
@@ -652,10 +568,7 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                           title="Renommer"
                           onClick={() => { if (!readOnly && !meetingOn) { setEditingTitleFor(t.id); setTempTitle(t.titre || ""); } }}
                           disabled={readOnly || meetingOn}
-                          aria-disabled={readOnly || meetingOn}
-                        >
-                          ✎
-                        </button>
+                        >✎</button>
                       </div>
                     ) : (
                       <div className="title-editor">
@@ -665,30 +578,25 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                           onChange={(e) => setTempTitle(e.target.value.slice(0, 80))}
                           placeholder="Nom de la tâche (max 80)"
                           autoFocus
-                          onKeyDown={(e) => {
+                          onKeyDown={async (e) => {
                             if (e.key === "Enter") {
-                              setTasks(prev => prev.map(x => x.id === t.id ? { ...x, titre: (tempTitle || "").slice(0, 80) } : x));
-                              setEditingTitleFor(null);
-                              setTempTitle("");
+                              const newTitle = (tempTitle || "").slice(0, 80);
+                              const next = await patchTask(t.id, { titre: newTitle });
+                              setTasks((prev) => prev.map((x) => (x.id === t.id ? next : x)));
+                              setEditingTitleFor(null); setTempTitle("");
                             }
                             if (e.key === "Escape") { setEditingTitleFor(null); setTempTitle(""); }
                           }}
                           maxLength={80}
                         />
                         <div className="inline-actions">
-                          <button
-                            className="ft-btn small"
-                            onClick={() => {
-                              setTasks(prev => prev.map(x => x.id === t.id ? { ...x, titre: (tempTitle || "").slice(0, 80) } : x));
-                              setEditingTitleFor(null);
-                              setTempTitle("");
-                            }}
-                          >
-                            OK
-                          </button>
-                          <button className="ft-btn ghost small" onClick={() => { setEditingTitleFor(null); setTempTitle(""); }}>
-                            Annuler
-                          </button>
+                          <button className="ft-btn small" onClick={async () => {
+                            const newTitle = (tempTitle || "").slice(0, 80);
+                            const next = await patchTask(t.id, { titre: newTitle });
+                            setTasks((prev) => prev.map((x) => (x.id === t.id ? next : x)));
+                            setEditingTitleFor(null); setTempTitle("");
+                          }}>OK</button>
+                          <button className="ft-btn ghost small" onClick={() => { setEditingTitleFor(null); setTempTitle(""); }}>Annuler</button>
                         </div>
                       </div>
                     )}
@@ -698,180 +606,42 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                   <td className="col-debut">{short(t.debut)}</td>
                   <td className="col-echeance">{short(t.echeance)}</td>
 
-                  {/* Admin (pastilles + popover “menu déroulant”) */}
-                  <td className="col-admin admin-cell">
-                    <div className="avatar-stack" aria-label="Équipe assignée">
-                      {/* Pastille Admin en premier */}
-                      {adminName ? (
-                        <button
-                          className="pastille-btn"
-                          title={`Admin: ${adminName}`}
-                          onClick={() => openPeoplePicker(t)}
-                          disabled={readOnly || meetingOn}
-                        >
-                          <span className={`pastille ${t.admin ? "is-admin" : ""}`}>
-                            {(() => {
-                              const url = avatarUrlFor(adminName);
-                              return url ? (
-                                // eslint-disable-next-line jsx-a11y/alt-text
-                                <img
-                                  src={encodeURI(url)}
-                                  onError={(e) => {
-                                    const parent = e.currentTarget.parentElement;
-                                    if (parent) parent.innerHTML = `<span class="fallback">${initials(adminName) || "?"}</span>`;
-                                  }}
-                                />
-                              ) : (
-                                <span className="fallback">{initials(adminName) || "?"}</span>
-                              );
-                            })()}
-                            <span className="admin-crown" aria-hidden>★</span>
-                          </span>
-                        </button>
-                      ) : (
-                        <button
-                          className="pastille-btn"
-                          title="Choisir des personnes"
-                          onClick={() => openPeoplePicker(t)}
-                          disabled={readOnly || meetingOn}
-                        >
-                          <span className="pastille empty">+</span>
-                        </button>
-                      )}
-
-                      {/* Autres pastilles (jusqu’à 2) */}
-                      {shown
-                        .filter(n => n !== adminName)
-                        .map((name, i) => (
-                          <button
-                            key={`${name}-${i}`}
-                            className="pastille-btn"
-                            title={name}
-                            onClick={() => openPeoplePicker(t)}
-                            disabled={readOnly || meetingOn}
-                          >
-                            <span className="pastille">
-                              {(() => {
-                                const url = avatarUrlFor(name);
-                                return url ? (
-                                  // eslint-disable-next-line jsx-a11y/alt-text
-                                  <img
-                                    src={encodeURI(url)}
-                                    onError={(e) => {
-                                      const parent = e.currentTarget.parentElement;
-                                      if (parent) parent.innerHTML = `<span class="fallback">${initials(name) || "?"}</span>`;
-                                    }}
-                                  />
-                                ) : (
-                                  <span className="fallback">{initials(name) || "?"}</span>
-                                );
-                              })()}
-                            </span>
-                          </button>
-                        ))}
-
-                      {/* +N */}
-                      {hiddenCount > 0 && (
-                        <button
-                          className="pastille-btn"
-                          title={`+${hiddenCount} autre(s)`}
-                          onClick={() => openPeoplePicker(t)}
-                          disabled={readOnly || meetingOn}
-                        >
-                          <span className="pastille more">+{hiddenCount}</span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Popover menu déroulant */}
-                    {isPeopleOpen && (
-                      <div className="pp-popover slim" role="dialog" onClick={(e) => e.stopPropagation()}>
-                        <div className="pp-head">
-                          <strong>Personnes</strong>
-                          <input
-                            className="pp-search"
-                            placeholder="Rechercher…"
-                            value={peopleSearch}
-                            onChange={(e) => setPeopleSearch(e.target.value)}
-                          />
-                          <div className="spacer" />
-                          <button className="ft-btn small ghost" onClick={() => { setPeopleDraft([]); setAdminDraft(""); }}>
-                            Aucun
-                          </button>
-                          <button className="ft-btn small ghost" onClick={() => { setPeopleDraft([...admins]); if (admins.length) setAdminDraft(admins[0]); }}>
-                            Tous
-                          </button>
-                          <button className="ft-icon-btn" aria-label="Fermer" onClick={cancelPeople}>✕</button>
-                        </div>
-
-                        <div className="pp-list">
-                          {admins
-                            .filter(a => a.toLowerCase().includes(peopleSearch.trim().toLowerCase()))
-                            .map((a) => (
-                              <label key={a} className="pp-row">
-                                <input
-                                  type="checkbox"
-                                  checked={peopleDraft.includes(a)}
-                                  onChange={() => toggleDraftPerson(a)}
-                                  aria-label={`Assigner ${a}`}
-                                />
-                                <span className="opt-avatar">
-                                  {avatarUrlFor(a) ? (
-                                    // eslint-disable-next-line jsx-a11y/alt-text
-                                    <img src={encodeURI(avatarUrlFor(a)!)} />
-                                  ) : (
-                                    <span className="fallback">{initials(a) || "?"}</span>
-                                  )}
-                                </span>
-                                <span className="opt-name">{a}</span>
-                                <span className="spacer" />
-                                <label className="opt-admin-radio" title="Définir admin">
-                                  <input
-                                    type="radio"
-                                    name={`admin-radio-${peoplePickerFor}`}
-                                    checked={adminDraft === a}
-                                    onChange={() => {
-                                      if (!peopleDraft.includes(a)) setPeopleDraft(prev => [...prev, a]);
-                                      setAdminDraft(a);
-                                    }}
-                                  />
-                                  <span className="opt-admin-label">Admin</span>
-                                </label>
-                              </label>
-                          ))}
-                          {admins.length === 0 && (
-                            <div className="ft-empty">Aucun résultat…</div>
-                          )}
-                        </div>
-
-                        <div className="pp-actions">
-                          <button className="ft-btn small" onClick={savePeople}>Enregistrer</button>
-                          <button className="ft-btn ghost small" onClick={cancelPeople}>Annuler</button>
-                        </div>
-                      </div>
-                    )}
+                  {/* Admin */}
+                  <td className="col-admin">
+                    <AdminCell
+                      admin={t.admin}
+                      assignees={t.assignees}
+                      options={admins}
+                      disabled={readOnly || meetingOn}
+                      onChange={async ({ admin, assignees }) => {
+                        const next = await patchTask(t.id, { admin, assignees });
+                        setTasks((prev) => prev.map((x) => (x.id === t.id ? next : x)));
+                      }}
+                    />
                   </td>
 
                   {/* Statut */}
                   <td className="col-statut">
                     <span className={`badge badge-${slug(t.statut)}`}>{t.statut}</span>
-                    {!canStart(t, tasks) && t.statut !== "Terminé" && (
-                      <span className="dep-warn" title="Dépendances non terminées"> ⛓️</span>
-                    )}
+                    {!canStart(t, tasks) && t.statut !== "Terminé" && <span className="dep-warn" title="Dépendances non terminées"> ⛓️</span>}
                   </td>
 
                   {/* Priorité */}
                   <td className="col-priorite">
-                    {t.priorite ? (
-                      <span className={`prio-pill ${prioClass(t.priorite)}`}>{t.priorite}</span>
-                    ) : "—"}
+                    {t.priorite ? <span className={`prio-pill ${prioClass(t.priorite)}`}>{t.priorite}</span> : "—"}
                   </td>
 
-                  {/* Bloque (sélecteur) */}
+                  {/* Bloque */}
                   <td className="col-bloque">
                     <button
                       className="ft-btn"
-                      onClick={() => openBlockPicker(t)}
+                      onClick={(e) => {
+                        if (readOnly || meetingOn) return;
+                        setBlockDraft([...(t.blocks ?? [])]);
+                        setBlockSearch("");
+                        setBlockPickerFor(t.id);
+                        setBlockAnchor(computeAnchor(e, 420, 360));
+                      }}
                       disabled={readOnly || meetingOn}
                       aria-disabled={readOnly || meetingOn}
                       title="Choisir quelles tâches sont bloquées par celle-ci"
@@ -881,18 +651,18 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                         : "—"}
                     </button>
 
-                    {isBlockOpen && (
-                      <div className="pp-popover" role="dialog" onClick={(e) => e.stopPropagation()}>
+                    {blockPickerFor === t.id && blockAnchor && (
+                      <div
+                        className={`pp-popover ${blockAnchor.dir === "up" ? "dir-up" : "dir-down"}`}
+                        role="dialog"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ position: "fixed", left: blockAnchor.left, top: blockAnchor.top }}
+                      >
                         <div className="pp-head">
                           <strong>Bloque</strong>
-                          <input
-                            className="pp-search"
-                            placeholder="Rechercher une tâche…"
-                            value={blockSearch}
-                            onChange={(e) => setBlockSearch(e.target.value)}
-                          />
+                          <input className="pp-search" placeholder="Rechercher une tâche…" value={blockSearch} onChange={(e) => setBlockSearch(e.target.value)} />
                           <div className="spacer" />
-                          <button className="ft-icon-btn" aria-label="Fermer" onClick={cancelBlocks}>✕</button>
+                          <button className="ft-icon-btn" aria-label="Fermer" onClick={() => { setBlockPickerFor(null); setBlockAnchor(null); }}>✕</button>
                         </div>
 
                         <div className="pp-list">
@@ -901,7 +671,9 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                               <input
                                 type="checkbox"
                                 checked={blockDraft.includes(opt.id)}
-                                onChange={() => toggleDraftBlock(opt.id)}
+                                onChange={() =>
+                                  setBlockDraft((prev) => (prev.includes(opt.id) ? prev.filter((id) => id !== opt.id) : [...prev, opt.id]))
+                                }
                               />
                               <span className="opt-name">{opt.titre || "—"}</span>
                               <span style={{ marginLeft: "auto" }} className="badge">{opt.statut}</span>
@@ -910,58 +682,301 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                           {blockChoices.length === 0 && <div className="ft-empty">Aucun résultat…</div>}
                         </div>
 
-                        <div className="pp-actions">
-                          <button className="ft-btn small" onClick={saveBlocks}>Enregistrer</button>
-                          <button className="ft-btn ghost small" onClick={cancelBlocks}>Annuler</button>
+                        <div className="pp-actions sticky-actions">
+                          <button
+                            className="ft-btn small"
+                            onClick={() => {
+                              if (!blockPickerFor) return;
+
+                              setTasks((prev) => {
+                                const current = prev.find((x) => x.id === blockPickerFor);
+                                if (!current) return prev;
+
+                                // 1) Mettre à jour "blocks"
+                                const updated: Task = { ...current, blocks: uniq(blockDraft) };
+
+                                // 2) Synchroniser le graphe
+                                const merged = syncGraph(prev, updated);
+
+                                // 3) Ajuster les statuts selon les deps
+                                const adjusted = merged.map((task) => {
+                                  if (task.statut !== "Terminé" && !canStart(task, merged) && task.statut !== "Bloqué") {
+                                    return { ...task, statut: "Bloqué" as Statut };
+                                  }
+                                  if (task.statut === "Bloqué" && canStart(task, merged)) {
+                                    return { ...task, statut: "En attente" as Statut };
+                                  }
+                                  return task;
+                                });
+
+                                // 4) Persister
+                                persistGraphChanges(prev, adjusted).catch(console.error);
+
+                                return adjusted;
+                              });
+
+                              // 5) Fermer
+                              setBlockPickerFor(null);
+                              setBlockDraft([]);
+                              setBlockSearch("");
+                              setBlockAnchor(null);
+                            }}
+                          >
+                            Enregistrer
+                          </button>
+
+                          <button
+                            className="ft-btn ghost small"
+                            onClick={() => {
+                              setBlockPickerFor(null);
+                              setBlockDraft([]);
+                              setBlockSearch("");
+                              setBlockAnchor(null);
+                            }}
+                          >
+                            Annuler
+                          </button>
                         </div>
                       </div>
                     )}
                   </td>
 
-                  {/* Bloqué par (lecture seule, à partir de dependsOn) */}
-                  <td className="col-bloque-par" title={dependsTitles.join(", ") || ""}>
-                    {dependsTitles.length ? dependsTitles.join(", ") : "—"}
+                  {/* Bloqué par (ÉDITABLE) */}
+                  <td className="col-bloque-par">
+                    <button
+                      className="ft-btn"
+                      onClick={(e) => {
+                        if (readOnly || meetingOn) return;
+                        setDepDraft([...(t.dependsOn ?? [])]);
+                        setDepSearch("");
+                        setDepPickerFor(t.id);
+                        setDepAnchor(computeAnchor(e, 420, 360));
+                      }}
+                      disabled={readOnly || meetingOn}
+                      title="Choisir de quelles tâches celle-ci dépend"
+                    >
+                      {dependsTitles.length
+                        ? dependsTitles.slice(0, 2).join(", ") + (dependsTitles.length > 2 ? ` +${dependsTitles.length - 2}` : "")
+                        : "—"}
+                    </button>
+
+                    {depPickerFor === t.id && depAnchor && (
+                      <div
+                        className={`pp-popover ${depAnchor.dir === "up" ? "dir-up" : "dir-down"}`}
+                        role="dialog"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ position: "fixed", left: depAnchor.left, top: depAnchor.top }}
+                      >
+                        <div className="pp-head">
+                          <strong>Bloqué par</strong>
+                          <input
+                            className="pp-search"
+                            placeholder="Rechercher une tâche…"
+                            value={depSearch}
+                            onChange={(e) => setDepSearch(e.target.value)}
+                          />
+                          <div className="spacer" />
+                          <button
+                            className="ft-icon-btn"
+                            aria-label="Fermer"
+                            onClick={() => { setDepPickerFor(null); setDepAnchor(null); }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="pp-list">
+                          {tasks
+                            .filter((x) => !x.archived && x.id !== t.id)
+                            .filter((x) => (x.titre || "").toLowerCase().includes(depSearch.trim().toLowerCase()))
+                            .sort((a, b) => (a.titre || "").localeCompare(b.titre || ""))
+                            .map((opt) => (
+                              <label key={opt.id} className="pp-row">
+                                <input
+                                  type="checkbox"
+                                  checked={depDraft.includes(opt.id)}
+                                  onChange={() =>
+                                    setDepDraft((prev) =>
+                                      prev.includes(opt.id) ? prev.filter((id) => id !== opt.id) : [...prev, opt.id]
+                                    )
+                                  }
+                                />
+                                <span className="opt-name">{opt.titre || "—"}</span>
+                                <span style={{ marginLeft: "auto" }} className="badge">{opt.statut}</span>
+                              </label>
+                            ))}
+                          {tasks
+                            .filter((x) => !x.archived && x.id !== t.id)
+                            .filter((x) => (x.titre || "").toLowerCase().includes(depSearch.trim().toLowerCase())).length === 0 && (
+                              <div className="ft-empty">Aucun résultat…</div>
+                            )}
+                        </div>
+
+                        <div className="pp-actions sticky-actions">
+                          <button
+                            className="ft-btn small"
+                            onClick={() => {
+                              if (!depPickerFor) return;
+
+                              setTasks((prev) => {
+                                const current = prev.find((x) => x.id === depPickerFor);
+                                if (!current) return prev;
+
+                                // 1) Mettre à jour "dependsOn"
+                                const updated: Task = { ...current, dependsOn: uniq(depDraft) };
+
+                                // 2) Synchroniser le graphe (met à jour blocks côté inverse)
+                                const merged = syncGraph(prev, updated);
+
+                                // 3) Ajuster les statuts selon les deps
+                                const adjusted = merged.map((task) => {
+                                  if (task.statut !== "Terminé" && !canStart(task, merged) && task.statut !== "Bloqué") {
+                                    return { ...task, statut: "Bloqué" };
+                                  }
+                                  if (task.statut === "Bloqué" && canStart(task, merged)) {
+                                    return { ...task, statut: "En attente" };
+                                  }
+                                  return task;
+                                });
+
+                                // 4) Persister
+                                persistGraphChanges(prev, adjusted).catch(console.error);
+
+                                return adjusted;
+                              });
+
+                              // 5) Fermer
+                              setDepPickerFor(null);
+                              setDepDraft([]);
+                              setDepSearch("");
+                              setDepAnchor(null);
+                            }}
+                          >
+                            Enregistrer
+                          </button>
+                          <button
+                            className="ft-btn ghost small"
+                            onClick={() => {
+                              setDepPickerFor(null);
+                              setDepDraft([]);
+                              setDepSearch("");
+                              setDepAnchor(null);
+                            }}
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </td>
 
                   {/* Étiquettes */}
                   <td className="col-etq wrap etq-cell">
                     {tags.length ? (
                       <div className="tags">
-                        {tags.slice(0, 3).map((lbl) => <span key={lbl} className="tag">{lbl}</span>)}
+                        {tags.slice(0, 3).map((lbl) => (<span key={lbl} className="tag">{lbl}</span>))}
                         {rest > 0 && <span className="tag">+{rest}</span>}
                       </div>
                     ) : "—"}
                     <button
                       className="tag-add"
                       title="Ajouter/retirer des étiquettes"
-                      onClick={() => openTagPicker(t)}
+                      onClick={(e) => {
+                        if (readOnly || meetingOn) return;
+                        setTagPickerFor(t.id);
+                        setTagDraft(Array.isArray(t.etiquettes) ? [...t.etiquettes] : []);
+                        setTagAnchor(computeAnchor(e, 360, 320));
+                      }}
                       disabled={readOnly || meetingOn}
-                      aria-disabled={readOnly || meetingOn}
                     >
                       +
                     </button>
 
-                    {isTagOpen && (
-                      <div className="tag-popover" onClick={(e) => e.stopPropagation()}>
-                        <div className="tag-popover-head">
+                    {isTagOpen && tagPickerFor === t.id && tagAnchor && (
+                      <div
+                        className={`pp-popover slim ${tagAnchor.dir === "up" ? "dir-up" : "dir-down"}`}
+                        role="dialog"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ position: "fixed", left: tagAnchor.left, top: tagAnchor.top }}
+                      >
+                        <div className="pp-head">
                           <strong>Étiquettes</strong>
-                          <button className="ft-icon-btn" onClick={cancelTags} aria-label="Fermer">✕</button>
+                          <div className="spacer" />
+                          <button
+                            className="ft-icon-btn"
+                            onClick={() => { setTagPickerFor(null); setTagDraft([]); setNewTag(""); setTagAnchor(null); }}
+                            aria-label="Fermer"
+                          >
+                            ✕
+                          </button>
                         </div>
-                        <div className="tag-popover-list">
-                          {PRESET_TAGS.map((lbl) => (
-                            <label key={lbl} className="tag-option">
+
+                        <div style={{ display: "flex", gap: 8, padding: "6px 0 10px" }}>
+                          <input
+                            className="cell-input"
+                            placeholder="Ajouter une étiquette (Ex: SEO, Urgent…)"
+                            value={newTag}
+                            onChange={(e) => setNewTag(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const v = newTag.trim();
+                                if (!v) return;
+                                setTagDraft((prev) => Array.from(new Set([...prev, v as Etiquette])));
+                                setNewTag("");
+                              }
+                            }}
+                          />
+                          <button
+                            className="ft-btn"
+                            type="button"
+                            onClick={() => {
+                              const v = newTag.trim();
+                              if (!v) return;
+                              setTagDraft((prev) => Array.from(new Set([...prev, v as Etiquette])));
+                              setNewTag("");
+                            }}
+                          >
+                            Ajouter
+                          </button>
+                        </div>
+
+                        <div className="pp-list" style={{ maxHeight: 240 }}>
+                          {allTags.map((lbl) => (
+                            <label key={lbl} className="pp-row" style={{ gridTemplateColumns: "auto 1fr auto" }}>
                               <input
                                 type="checkbox"
                                 checked={tagDraft.includes(lbl)}
-                                onChange={() => toggleDraftTag(lbl)}
+                                onChange={() =>
+                                  setTagDraft((prev) => (prev.includes(lbl) ? prev.filter((x) => x !== lbl) : [...prev, lbl]))
+                                }
                               />
                               <span>{lbl}</span>
                             </label>
                           ))}
+                          {!allTags.length && <div className="ft-empty">Aucune étiquette.</div>}
                         </div>
-                        <div className="tag-popover-actions">
-                          <button className="ft-btn small" onClick={saveTags}>Enregistrer</button>
-                          <button className="ft-btn ghost small" onClick={cancelTags}>Annuler</button>
+
+                        <div className="pp-actions sticky-actions">
+                          <button
+                            className="ft-btn small"
+                            onClick={async () => {
+                              if (!tagPickerFor) { setTagDraft([]); return; }
+                              const next = await patchTask(tagPickerFor, { etiquettes: [...tagDraft] });
+                              setTasks((prev) => prev.map((x) => (x.id === tagPickerFor ? next : x)));
+                              setTagPickerFor(null);
+                              setTagDraft([]);
+                              setNewTag("");
+                              setTagAnchor(null);
+                            }}
+                          >
+                            Enregistrer
+                          </button>
+                          <button
+                            className="ft-btn ghost small"
+                            onClick={() => { setTagPickerFor(null); setTagDraft([]); setNewTag(""); setTagAnchor(null); }}
+                          >
+                            Annuler
+                          </button>
                         </div>
                       </div>
                     )}
@@ -979,28 +994,33 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
                         <>
                           <button
                             className="ft-btn primary"
-                            onClick={() => handleOpenEditById(t.id)}
+                            onClick={() => { if (readOnly || meetingOn) return; const tt = tasks.find((x) => x.id === t.id); if (tt) setEditingTask(tt); }}
                             disabled={readOnly || meetingOn}
-                            aria-disabled={readOnly || meetingOn}
-                          >
-                            ✏️ Éditer
-                          </button>
-                          <button className="ft-btn ghost" onClick={() => handleOpenDetailById(t.id)}>
-                            ℹ️ Détails
-                          </button>
+                          > Éditer</button>
+                          <button className="ft-btn ghost" onClick={() => setSelectedTaskId(t.id)}> Détails</button>
                           <button
                             className="ft-btn danger ghost"
-                            onClick={() => requestDeleteOrArchive(t.id)}
+                            title="Archiver la tâche"
+                            onClick={() => {
+                              if (readOnly || meetingOn) return;
+                              const tt = tasks.find((x) => x.id === t.id);
+                              setConfirm({ open: true, taskId: t.id, label: tt?.titre ?? "cette tâche" });
+                            }}
                             disabled={readOnly || meetingOn}
-                            aria-disabled={readOnly || meetingOn}
-                          >
-                            🗑️ Supprimer
-                          </button>
+                          > Archiver</button>
                         </>
                       ) : (
                         <>
-                          <button className="ft-btn" onClick={() => restoreById(t.id)} disabled={meetingOn} aria-disabled={meetingOn}>↩️ Restaurer</button>
-                          <button className="ft-btn danger" onClick={() => deleteById(t.id)} disabled={meetingOn} aria-disabled={meetingOn}>🗑️ Supprimer</button>
+                          <button
+                            className="ft-btn"
+                            onClick={async () => {
+                              const next = await apiRestore(t.id);
+                              setTasks((prev) => prev.map((x) => (x.id === t.id ? next : x)));
+                            }}
+                            disabled={meetingOn}
+                          >
+                            ↩️ Restaurer
+                          </button>
                         </>
                       )}
                     </div>
@@ -1018,53 +1038,86 @@ export default function PlannerTable({ readOnly = false }: PlannerTableProps) {
         </table>
       </div>
 
-      {/* Datalist Admin : presets + dynamiques */}
-      <datalist id="admins-list">
-        {admins.map((a) => <option key={a} value={a} />)}
-      </datalist>
+      {/* Datalist Admin */}
+      <datalist id="admins-list">{admins.map((a) => <option key={a} value={a} />)}</datalist>
 
-      {/* ===== Modale Détail ===== */}
+      {/* Modales */}
       {selectedTask && (
         <TaskDetailModal
           task={selectedTask}
           onClose={() => setSelectedTaskId(null)}
-          onEdit={(taskId: string) => handleOpenEditById(taskId)}
-          onDelete={(taskId: string) => requestDeleteOrArchive(taskId)}
+          onEdit={(taskId: string) => {
+            if (readOnly || meetingOn) return;
+            const t = tasks.find((x) => x.id === taskId);
+            if (t) setEditingTask(t);
+          }}
+          onDelete={(taskId: string) => {
+            if (readOnly || meetingOn) return;
+            const t = tasks.find((x) => x.id === taskId);
+            setConfirm({ open: true, taskId, label: t?.titre ?? "cette tâche" });
+          }}
         />
       )}
 
-      {/* ===== Modale Édition ===== */}
       {editingTask && (
         <EditTaskModal
           open={true}
           task={editingTask}
           admins={admins}
           tasks={tasks}
-          onSave={handleSaveEdit}
-          onClose={() => setEditingTask(null)}
-          onAskArchiveDelete={(t) => {
+          onSave={(updated) => {
+            const safeTitle = (updated.titre ?? "").slice(0, 80);
+            const safeRemarks = (updated.remarques ?? "").slice(0, 250);
+            const tmp: Task = { ...updated, titre: safeTitle, remarques: safeRemarks };
+            const depsOk = canStart(tmp, tasks);
+            if (!depsOk && tmp.statut !== "Terminé") tmp.statut = "Bloqué";
+            (async () => {
+              const saved = await patchTask(tmp.id, tmp);
+              setTasks((prev) => {
+                const merged = prev.map((x) => (x.id === saved.id ? { ...x, ...saved } : x));
+                return syncGraph(merged, { ...prev.find((x) => x.id === saved.id)!, ...saved });
+              });
+            })();
             setEditingTask(null);
-            setConfirm({ open: true, taskId: t.id, label: t.titre ?? "cette tâche" });
           }}
+          onClose={() => setEditingTask(null)}
+          onAskArchiveDelete={(t) => { setEditingTask(null); setConfirm({ open: true, taskId: t.id, label: t.titre ?? "cette tâche" }); }}
         />
       )}
 
-      {/* ===== Confirm 3 choix ===== */}
+      {/* ➕ Ajout */}
+      <AddTaskModal
+        open={createOpen}
+        admins={admins}
+        tags={PRESET_TAGS}
+        onCreate={async (draft) => {
+          const saved = await upsertTask(draft);
+          setTasks((prev) => [saved, ...prev]);
+          setCreateOpen(false);
+        }}
+        onClose={() => setCreateOpen(false)}
+      />
+
       <ConfirmDialog3
         open={confirm.open}
-        title="Que faire de cette tâche ?"
-        message={`Voulez-vous archiver ou supprimer « ${confirm.label} » ?`}
-        onArchive={() => confirm.taskId ? archiveById(confirm.taskId) : setConfirm({ open: false })}
-        onDelete={() => confirm.taskId ? deleteById(confirm.taskId) : setConfirm({ open: false })}
+        title="Archiver la tâche"
+        message={`Voulez-vous archiver « ${confirm.label} » ? (aucune suppression définitive)`}
+        onArchive={async () => {
+          if (!confirm.taskId) { setConfirm({ open: false }); return; }
+          const next = await apiArchive(confirm.taskId);
+          setTasks((prev) => prev.map((x) => (x.id === next.id ? next : x)));
+          setConfirm({ open: false });
+        }}
         onCancel={() => setConfirm({ open: false })}
       />
 
-      {/* ===== Modale Archivées ===== */}
       <ArchivedTasksModal
         open={archOpen}
         tasks={archivedList}
-        onRestore={restoreById}
-        onDelete={deleteById}
+        onRestore={async (taskId) => {
+          const next = await apiRestore(taskId);
+          setTasks((prev) => prev.map((x) => (x.id === taskId ? next : x)));
+        }}
         onClose={() => setArchOpen(false)}
       />
     </div>
