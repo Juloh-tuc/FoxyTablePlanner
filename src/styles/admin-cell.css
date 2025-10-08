@@ -1,50 +1,141 @@
-/* AdminCell – popover scrollable et isolé */
-.ac-cell { position: relative; }
+/* =======================================================
+   AdminCell – popover scrollable et isolé (thème FoxyTable)
+   ======================================================= */
 
-.ac-trigger { white-space: nowrap; }
+.ac-cell {
+  position: relative;
+}
 
+/* --- Bouton principal (pastille admin/assignees) --- */
+.ac-trigger {
+  white-space: nowrap;
+  font-weight: 500;
+  border-radius: 0.75rem;
+  border: 1px solid var(--ft-brd);
+  background: var(--ft-surface-2);
+  color: var(--ft-text);
+  padding: 0.35rem 0.75rem;
+  transition: all 0.15s ease-in-out;
+}
+
+.ac-trigger:hover:not(:disabled) {
+  background: var(--ft-surface);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.ac-trigger:focus-visible {
+  outline: 2px solid var(--ft-ring);
+  outline-offset: 2px;
+}
+
+.ac-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Popover --- */
 .ac-popover {
   position: fixed;
   background: var(--ft-surface, #fff);
-  border: 1px solid var(--ft-brd, #e5e7eb);
+  border: 1px solid var(--ft-brd);
   border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.12);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
-  z-index: 9999;           /* au-dessus de la table; laisse tes modales au-dessus si besoin */
+  z-index: 9999;
   width: 320px;
   max-height: 360px;
   -webkit-overflow-scrolling: touch;
+  animation: fadeInPop 0.25s ease forwards;
 }
 
+@keyframes fadeInPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* --- Header --- */
 .ac-head {
-  display: flex; align-items: center; gap: .5rem;
-  padding: .5rem .75rem; border-bottom: 1px solid var(--ft-brd, #e5e7eb);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--ft-brd);
+  background: var(--ft-surface-2);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
 }
 
-.ac-search { flex: 1 1 auto; min-width: 120px; }
+.ac-search {
+  flex: 1 1 auto;
+  min-width: 120px;
+  border: 1px solid var(--ft-brd);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.9rem;
+  transition: border-color 0.2s ease;
+}
 
+.ac-search:focus {
+  outline: none;
+  border-color: var(--ft-brand);
+  box-shadow: 0 0 0 2px var(--ft-ring);
+}
+
+/* --- Liste scrollable --- */
 .ac-list {
   max-height: 260px;
-  overflow: auto;                 /* zone qui SCROLLE */
-  overscroll-behavior: contain;   /* empêche le scroll de « sortir » vers la page */
-  padding: .25rem .5rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0.25rem 0.5rem;
 }
 
 .ac-row {
-  display: flex; align-items: center; gap: .5rem;
-  padding: .375rem .25rem; border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.25rem;
+  border-radius: 6px;
+  transition: background 0.15s ease;
 }
 
-.ac-row:hover { background: rgba(0,0,0,.03); }
+.ac-row:hover {
+  background: var(--ft-surface-2);
+}
 
-.ac-admin-radio { display: inline-flex; align-items: center; gap: .35rem; }
-.ac-admin-label { font-size: .85rem; opacity: .85; }
+/* --- Radios / Checkboxes --- */
+.ac-admin-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
 
+.ac-admin-label {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  color: var(--ft-muted);
+}
+
+/* --- Actions --- */
 .ac-actions {
-  display: flex; gap: .5rem; justify-content: flex-end;
-  padding: .5rem .75rem; border-top: 1px solid var(--ft-brd, #e5e7eb);
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--ft-brd);
+  background: var(--ft-surface-2);
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
 }
 
-/* Optionnel: évite le scroll chaining de la table elle-même */
-.table-wrap { overscroll-behavior: none; }
+/* --- Table scroll chaining fix --- */
+.table-wrap {
+  overscroll-behavior: none;
+}

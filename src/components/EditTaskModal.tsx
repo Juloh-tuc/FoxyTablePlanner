@@ -2,9 +2,15 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import "./edit-task-modal.css";
-import type { Task, Statut, Priorite, Etiquette } from "../types";
-import { STATUTS_ALL, PRIORITES_ALL, ETIQUETTES_PRESET } from "../types";
-
+import type { Task, Statut, Priorite, Etiquette, Kind, Domain } from "../types";
+import {
+  STATUTS_ALL,
+  PRIORITES_ALL,
+  ETIQUETTES_PRESET,
+  KINDS_ALL,
+  DOMAINS_ALL,
+} from "../types";
+import { canLink, wouldCreateCycle } from "../utils/deps";
 
 /* ---------- Helpers ---------- */
 const uniqStrings = (arr: Array<string | null | undefined>): string[] =>
@@ -80,7 +86,6 @@ export default function EditTaskModal({
     setDraft((d) => ({ ...d, assignees: uniqStrings([...(d.assignees ?? []), v]) }));
     setAssigneeInput("");
   };
-
   const removeAssignee = (name: string) =>
     setDraft((d) => ({ ...d, assignees: (d.assignees ?? []).filter((a) => a !== name) }));
 
@@ -94,25 +99,58 @@ export default function EditTaskModal({
     });
   };
 
+  const byId = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+
   const otherTasks = useMemo(
     () => tasks.filter((t) => t.id !== draft.id && !t.archived),
     [tasks, draft.id]
   );
 
+  /** 
+   * IMPORTANT — sens des liens :
+   * - "Dépend de"  : on crée   X -> draft   (donc canLink(X, draft), cycle(X, draft))
+   * - "Bloque"     : on crée   draft -> X  (donc canLink(draft, X), cycle(draft, X))
+   */
+  const filteredForDepends = useMemo(
+    () =>
+      otherTasks.filter((t) => {
+        const p = canLink(t, draft);
+        if (!p.ok) return false;
+        if (wouldCreateCycle(byId, t.id, draft.id)) return false; // t -> draft
+        return true;
+      }),
+    [otherTasks, draft, byId]
+  );
+
+  const filteredForBlocks = useMemo(
+    () =>
+      otherTasks.filter((t) => {
+        const p = canLink(draft, t);
+        if (!p.ok) return false;
+        if (wouldCreateCycle(byId, draft.id, t.id)) return false; // draft -> t
+        return true;
+      }),
+    [otherTasks, draft, byId]
+  );
+
   const inChoices = useMemo(
     () =>
-      otherTasks
-        .filter((t) => (t.titre || t.title || "").toLowerCase().includes(qIn.trim().toLowerCase()))
+      filteredForDepends
+        .filter((t) =>
+          (t.titre || t.title || "").toLowerCase().includes(qIn.trim().toLowerCase())
+        )
         .sort((a, b) => (a.titre || a.title || "").localeCompare(b.titre || b.title || "")),
-    [otherTasks, qIn]
+    [filteredForDepends, qIn]
   );
 
   const outChoices = useMemo(
     () =>
-      otherTasks
-        .filter((t) => (t.titre || t.title || "").toLowerCase().includes(qOut.trim().toLowerCase()))
+      filteredForBlocks
+        .filter((t) =>
+          (t.titre || t.title || "").toLowerCase().includes(qOut.trim().toLowerCase())
+        )
         .sort((a, b) => (a.titre || a.title || "").localeCompare(b.titre || b.title || "")),
-    [otherTasks, qOut]
+    [filteredForBlocks, qOut]
   );
 
   /* ---------- Actions ---------- */
@@ -121,6 +159,19 @@ export default function EditTaskModal({
     const name = (draft.titre ?? draft.title ?? "").trim().slice(0, 80);
     if (!name) return; // bouton désactivé mais on sécurise
     const nowIso = new Date().toISOString();
+
+    // Sanitize des sélections selon la politique et l’anti-cycle (au cas où)
+    const cleanDependsOn = uniqStrings(draft.dependsOn ?? []).filter((id) => {
+      if (id === draft.id) return false;
+      const t = byId.get(id);
+      return !!t && canLink(t, draft).ok && !wouldCreateCycle(byId, t.id, draft.id);
+    });
+
+    const cleanBlocks = uniqStrings(draft.blocks ?? []).filter((id) => {
+      if (id === draft.id) return false;
+      const t = byId.get(id);
+      return !!t && canLink(draft, t).ok && !wouldCreateCycle(byId, draft.id, t.id);
+    });
 
     onSave({
       ...draft,
@@ -138,25 +189,28 @@ export default function EditTaskModal({
       echeance: (draft.echeance ?? draft.dueDate) || undefined,
       dueDate: (draft.echeance ?? draft.dueDate) || undefined,
 
-      // blocages
+      // notes libres
       bloque: (draft.bloque ?? "").trim() || undefined,
-      blockedBy: (draft.bloque ?? "").trim()
-        ? (draft.bloque ?? "").trim()
-        : draft.blockedBy,
+      blockedBy:
+        (draft.bloque ?? "").trim() ? (draft.bloque ?? "").trim() : draft.blockedBy,
       bloquePar: (draft.bloquePar ?? "").trim() || undefined,
 
       // collections
       assignees: uniqStrings(draft.assignees ?? []),
-      dependsOn: uniqStrings(draft.dependsOn ?? []),
-      blocks: uniqStrings(draft.blocks ?? []),
+      dependsOn: cleanDependsOn,
+      blocks: cleanBlocks,
       etiquettes: uniqStrings(draft.etiquettes ?? []) as Etiquette[],
 
       // bornes
-      avancement: typeof draft.avancement === "number" ? toPct(draft.avancement) : 0,
+      avancement:
+        typeof draft.avancement === "number" ? toPct(draft.avancement) : 0,
 
       // horodatage
       updatedAt: nowIso,
     });
+
+    // NOTE: le parent garde la responsabilité de synchroniser le graphe
+    // (miroirs dependsOn <-> blocks) pour toutes les tâches.
   };
 
   const askArchive = () => {
@@ -171,7 +225,8 @@ export default function EditTaskModal({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       const isSaveCombo =
-        (e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === "s" || e.key === "Enter");
+        (e.metaKey || e.ctrlKey) &&
+        (e.key.toLowerCase() === "s" || e.key === "Enter");
       if (isSaveCombo) {
         e.preventDefault();
         handleSave();
@@ -195,7 +250,9 @@ export default function EditTaskModal({
         {/* Header */}
         <div className="ft-modal-header">
           <h3 className="ft-modal-title">Éditer la tâche</h3>
-          <button className="ft-icon-btn" onClick={onClose} aria-label="Fermer">✕</button>
+          <button className="ft-icon-btn" onClick={onClose} aria-label="Fermer">
+            ✕
+          </button>
         </div>
 
         {/* Form */}
@@ -214,17 +271,18 @@ export default function EditTaskModal({
             />
           </label>
 
- {/* Admin (saisie libre + suggestions) */}
- <label className="tdm-field">
-  <span className="tdm-label">Admin</span>
-   <input
-     list="admins-list"
-     className="cell-input"
-    placeholder="Tape un prénom ou choisis…"
-    value={draft.admin ?? ""}
-     onChange={(e) => setDraft((d) => ({ ...d, admin: e.target.value }))}
-   />
- </label>
+          {/* Admin (saisie libre + suggestions) */}
+          <label className="tdm-field">
+            <span className="tdm-label">Admin</span>
+            <input
+              list="admins-list"
+              className="cell-input"
+              placeholder="Tape un prénom ou choisis…"
+              value={draft.admin ?? ""}
+              onChange={(e) => setDraft((d) => ({ ...d, admin: e.target.value }))}
+            />
+          </label>
+
           {/* Statut */}
           <label className="tdm-field">
             <span className="tdm-label">Statut</span>
@@ -234,7 +292,9 @@ export default function EditTaskModal({
               onChange={(e) => change("statut", e.target.value as Statut)}
             >
               {STATUTS_ALL.map((st) => (
-                <option key={st} value={st}>{st}</option>
+                <option key={st} value={st}>
+                  {st}
+                </option>
               ))}
             </select>
           </label>
@@ -256,7 +316,9 @@ export default function EditTaskModal({
             >
               <option value="">—</option>
               {PRIORITES_ALL.map((p) => (
-                <option key={p} value={p}>{p}</option>
+                <option key={p} value={p}>
+                  {p}
+                </option>
               ))}
             </select>
           </label>
@@ -269,7 +331,11 @@ export default function EditTaskModal({
               className="cell-input"
               value={(draft.debut ?? draft.startDate) ?? ""}
               onChange={(e) =>
-                setDraft((d) => ({ ...d, debut: e.target.value || undefined, startDate: e.target.value || undefined }))
+                setDraft((d) => ({
+                  ...d,
+                  debut: e.target.value || undefined,
+                  startDate: e.target.value || undefined,
+                }))
               }
             />
           </label>
@@ -281,7 +347,69 @@ export default function EditTaskModal({
               className="cell-input"
               value={(draft.echeance ?? draft.dueDate) ?? ""}
               onChange={(e) =>
-                setDraft((d) => ({ ...d, echeance: e.target.value || undefined, dueDate: e.target.value || undefined }))
+                setDraft((d) => ({
+                  ...d,
+                  echeance: e.target.value || undefined,
+                  dueDate: e.target.value || undefined,
+                }))
+              }
+            />
+          </label>
+
+          {/* === Nouvelles infos structurantes === */}
+          <label className="tdm-field">
+            <span className="tdm-label">Kind</span>
+            <select
+              className="ft-select"
+              value={draft.kind ?? ""}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  kind: (e.target.value || undefined) as Kind | undefined,
+                }))
+              }
+            >
+              <option value="">—</option>
+              {KINDS_ALL.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="tdm-field">
+            <span className="tdm-label">Domain</span>
+            <select
+              className="ft-select"
+              value={draft.domain ?? ""}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  domain: (e.target.value || undefined) as Domain | undefined,
+                }))
+              }
+            >
+              <option value="">—</option>
+              {DOMAINS_ALL.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="tdm-field">
+            <span className="tdm-label">Epic</span>
+            <input
+              className="cell-input"
+              placeholder="ex: E-42"
+              value={draft.epicId ?? ""}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  epicId: e.target.value.trim() || undefined,
+                }))
               }
             />
           </label>
@@ -296,7 +424,9 @@ export default function EditTaskModal({
               step={5}
               className="cell-input"
               value={typeof draft.avancement === "number" ? draft.avancement : 0}
-              onChange={(e) => setDraft((d) => ({ ...d, avancement: toPct(e.target.value) }))}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, avancement: toPct(e.target.value) }))
+              }
             />
           </label>
 
@@ -331,7 +461,7 @@ export default function EditTaskModal({
             />
           </label>
 
-          {/* Dépendances : dépend de */}
+          {/* Dépendances : dépend de (entrantes) */}
           <div className="tdm-field span-2">
             <span className="tdm-label">Dépend de</span>
             <div style={{ display: "grid", gap: 8 }}>
@@ -350,17 +480,27 @@ export default function EditTaskModal({
                       onChange={() => toggleDep("dependsOn", t.id)}
                     />
                     <span style={{ fontWeight: 600 }}>{t.titre || t.title}</span>
+                    <span className="badge" style={{ marginLeft: 8 }}>
+                      {t.kind ?? "—"}
+                    </span>
+                    {t.epicId && (
+                      <span className="badge" style={{ marginLeft: 6 }}>
+                        epic:{t.epicId}
+                      </span>
+                    )}
                     <span style={{ marginLeft: "auto" }} className="badge">
                       {t.statut}
                     </span>
                   </label>
                 ))}
-                {!inChoices.length && <div className="ft-empty">Aucun résultat.</div>}
+                {!inChoices.length && (
+                  <div className="ft-empty">Aucun résultat (politique/anti-cycle).</div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Dépendances : bloque */}
+          {/* Dépendances : bloque (sortantes) */}
           <div className="tdm-field span-2">
             <span className="tdm-label">Bloque</span>
             <div style={{ display: "grid", gap: 8 }}>
@@ -379,12 +519,22 @@ export default function EditTaskModal({
                       onChange={() => toggleDep("blocks", t.id)}
                     />
                     <span style={{ fontWeight: 600 }}>{t.titre || t.title}</span>
+                    <span className="badge" style={{ marginLeft: 8 }}>
+                      {t.kind ?? "—"}
+                    </span>
+                    {t.epicId && (
+                      <span className="badge" style={{ marginLeft: 6 }}>
+                        epic:{t.epicId}
+                      </span>
+                    )}
                     <span style={{ marginLeft: "auto" }} className="badge">
                       {t.statut}
                     </span>
                   </label>
                 ))}
-                {!outChoices.length && <div className="ft-empty">Aucun résultat.</div>}
+                {!outChoices.length && (
+                  <div className="ft-empty">Aucun résultat (politique/anti-cycle).</div>
+                )}
               </div>
             </div>
           </div>
@@ -435,7 +585,9 @@ export default function EditTaskModal({
                   </button>
                 </span>
               ))}
-              {(draft.etiquettes ?? []).length === 0 && <span className="muted">Aucune étiquette</span>}
+              {(draft.etiquettes ?? []).length === 0 && (
+                <span className="muted">Aucune étiquette</span>
+              )}
             </div>
 
             {/* Ajout custom */}
@@ -499,10 +651,19 @@ export default function EditTaskModal({
               {(draft.assignees ?? []).map((a) => (
                 <span key={a} className="chip">
                   {a}
-                  <button className="chip-x" onClick={() => removeAssignee(a)} title="Retirer" type="button">×</button>
+                  <button
+                    className="chip-x"
+                    onClick={() => removeAssignee(a)}
+                    title="Retirer"
+                    type="button"
+                  >
+                    ×
+                  </button>
                 </span>
               ))}
-              {(draft.assignees ?? []).length === 0 && <span className="muted">Personne pour l’instant</span>}
+              {(draft.assignees ?? []).length === 0 && (
+                <span className="muted">Personne pour l’instant</span>
+              )}
             </div>
             <div className="assignees-add">
               <input
@@ -511,9 +672,16 @@ export default function EditTaskModal({
                 placeholder="Saisir un nom puis Entrée"
                 value={assigneeInput}
                 onChange={(e) => setAssigneeInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addAssignee(); } }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addAssignee();
+                  }
+                }}
               />
-              <button className="ft-btn" type="button" onClick={addAssignee}>Ajouter</button>
+              <button className="ft-btn" type="button" onClick={addAssignee}>
+                Ajouter
+              </button>
             </div>
           </div>
         </div>
@@ -526,7 +694,9 @@ export default function EditTaskModal({
             </button>
           </div>
           <div>
-            <button className="ft-btn ghost" type="button" onClick={onClose}>Annuler</button>
+            <button className="ft-btn ghost" type="button" onClick={onClose}>
+              Annuler
+            </button>
             <button
               className="ft-btn primary"
               type="button"
@@ -540,7 +710,11 @@ export default function EditTaskModal({
         </div>
 
         {/* datalist pour l’auto-complétion des assignés */}
-        <datalist id="admins-list">{admins.map((a) => <option key={a} value={a} />)}</datalist>
+        <datalist id="admins-list">
+          {admins.map((a) => (
+            <option key={a} value={a} />
+          ))}
+        </datalist>
       </div>
     </div>,
     document.body

@@ -1,12 +1,17 @@
 /* ================================
    planner-agile.css — Kanban Agile (FoxyTable)
-   Couleurs : Bleu minuit (#191970) + Accent orange (#E5813E)
+   Thème : Bleu minuit (#191970) + Accent orange (#E5813E)
+   Version A — large + post-it auto-grow
    ================================ */
 
 /* ---------- Tokens locaux ---------- */
 :root{
-  /* Layout */
-  --wrap-max: 87.5rem;
+  /* Largeur max “large desktop” */
+  --wrap-max: 1700px;         /* cible principale */
+  --wrap-max-xl: 1800px;      /* >= 1440/1600 */
+  --wrap-max-xxl: 2000px;     /* >= 1680/1920 */
+
+  /* Gouttières */
   --gutter: 1rem;
 
   /* Neutres */
@@ -31,36 +36,55 @@
   --ft-accent: #E5813E;                  /* Orange accent */
   --ft-accent-rgb: 229,129,62;
 
-  /* Aliases (remplacent l’ancien violet) */
+  /* Aliases */
   --brand: var(--ft-brand-main);
   --ring: rgba(var(--ft-brand-main-rgb), .28);
 
-  /* Kanban spacing / heights */
-  --kan-gap: 0.625rem;
-  --kan-card-min: 5.25rem;
-
-  /* Hauteurs par défaut (pensées pour écrans moyens) */
-  --cards-gap: 10px;
-  --card-height: clamp(120px, 19vh, 170px);
+  /* Cartes Kanban (hauteurs) */
+  --cards-gap: 12px;
+  --kan-card-min: 5rem;
+  --card-height: clamp(120px, 19vh, 180px);
 
   /* Notes (post-it) */
   --note-brd: #e5e7eb;
   --note-text: #0f172a;
   --note-muted:#64748b;
   --note-shadow: 0 4px 14px rgba(0,0,0,.06);
-  --sticky-yellow:#fff7d6;
-  --sticky-pink:  #ffe3ef;
-  --sticky-green: #dff7ed;
-  --sticky-blue:  #e7f0ff;
+
+  /* Hauteur d’une rangée de post-it (viewport ~2 lignes de grille visibles) */
+  --notes-row: 180px;
+  --notes-gap: 12px;
+
+  /* ➕ Auto-grow textarea */
+  --note-line: 1.35em;   /* hauteur d’une ligne de texte */
+  --note-pad : 16px;     /* padding vertical cumulé du textarea */
+  --note-min : 3.2rem;   /* ~2 lignes visibles de base */
+  --note-max-lines: 22;  /* limite douce optionnelle pour .sticky-text.cap */
 }
 
-/* ---------- Full bleed container ---------- */
+/* ---------- Full bleed container (large sans scroll horizontal) ---------- */
 .ft-fullbleed{
   width: 100vw;
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
-  padding-left: max(16px, calc((100vw - 1700px) / 2));
-  padding-right: max(16px, calc((100vw - 1700px) / 2));
+  padding-left: max(16px, calc((100vw - var(--wrap-max)) / 2));
+  padding-right: max(16px, calc((100vw - var(--wrap-max)) / 2));
+  overflow-x: hidden;
+}
+@supports (width: 100dvw){
+  .ft-fullbleed{
+    width: 100dvw;
+    margin-left: calc(50% - 50dvw);
+    margin-right: calc(50% - 50dvw);
+    padding-left: max(16px, calc((100dvw - var(--wrap-max)) / 2));
+    padding-right: max(16px, calc((100dvw - var(--wrap-max)) / 2));
+  }
+}
+@media (min-width: 1680px){
+  :root{ --wrap-max: var(--wrap-max-xxl); }
+}
+@media (min-width: 1440px) and (max-width: 1679.98px){
+  :root{ --wrap-max: var(--wrap-max-xl); }
 }
 
 /* ---------- Page wrapper ---------- */
@@ -90,26 +114,37 @@
   flex: 1 1 auto; min-height: 0;
   display:grid;
   grid-template-columns: 1fr;
-  gap:0.75rem;
-  margin-top:10px;
+  gap: 0.875rem;
+  margin-top: 10px;
 }
+
+/* ≥768px : 2 colonnes */
 @media (min-width: 768px){
-  .kan-board{ grid-template-columns: repeat(2, 1fr); gap:0.875rem; }
+  .kan-board{ grid-template-columns: repeat(2, minmax(340px, 1fr)); }
 }
+
+/* ≥980px : 4 colonnes, min 320–360px pour élargir réellement */
 @media (min-width: 980px){
-  .kan-board{ grid-template-columns: repeat(4, 1fr); gap:0.875rem; }
+  .kan-board{ grid-template-columns: repeat(4, minmax(340px, 1fr)); }
 }
+
+/* ≥1280px : souffle + min 360px */
 @media (min-width: 1280px){
-  .kan-board{ grid-template-columns: repeat(4, minmax(20rem, 1fr)); gap:1.125rem; }
+  .kan-board{
+    grid-template-columns: repeat(4, minmax(360px, 1fr));
+    gap: 1.125rem;
+  }
 }
+
+/* ≥1600px : un peu plus d’espace */
 @media (min-width: 1600px){
-  .kan-board{ gap:1.25rem; }
+  .kan-board{ gap: 1.25rem; }
 }
 
 .kan-col{
   display: flex; flex-direction: column; min-height: 0;
   border:1px solid var(--border); background:var(--surface);
-  border-radius:1rem; overflow: visible; box-shadow: var(--shadow-sm);
+  border-radius:1rem; overflow: hidden; box-shadow: var(--shadow-sm);
 }
 
 .kan-col__title{
@@ -117,7 +152,6 @@
   padding:0.625rem 0.75rem; background:var(--surface-2);
   border-bottom:1px solid var(--border);
   display:flex; align-items:center; justify-content:space-between;
-  border-top-left-radius: 1rem; border-top-right-radius: 1rem;
 }
 .kan-col__title .count{
   font-weight:800; padding:0.125rem 0.5rem; border-radius:999px;
@@ -167,7 +201,7 @@
 /* Compat (ancienne classe) */
 .kan-col__list{
   padding:0.625rem;
-  display:flex; flex-direction:column; gap:var(--kan-gap);
+  display:flex; flex-direction:column; gap:0.625rem;
 }
 
 /* =======================
@@ -310,7 +344,7 @@
 }
 
 /* =====================================================
-   Notes / Post-it
+   Notes / Post-it — AUTO-GROW + grille adaptative
    ===================================================== */
 .notes-section{ margin-top:14px; }
 .notes-title{ font-weight:800; color:#374151; margin-bottom:6px; }
@@ -333,21 +367,26 @@
 .nt-btn { cursor:pointer; }
 .nt-btn:disabled { opacity:.5; cursor:not-allowed; }
 
-/* Grille scrollable interne */
+/* 🎯 Grille : lignes auto (s’adapte à la hauteur des post-it)
+   → viewport ≈ 2 rangées visibles, le reste défile */
 .notes-grid {
   display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap:10px;
-  max-height: 56vh;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--notes-gap);
+  grid-auto-rows: auto; /* clé: plus de ligne fixe */
+  max-height: calc(2 * var(--notes-row) + var(--notes-gap));
   overflow: auto;
+  align-content: start;
   padding-right: 4px;
 }
 
-/* Carte post-it */
+/* Carte post-it — grandit avec le contenu */
 .sticky {
   border:1px solid #e5e7eb; border-radius:12px; padding:10px;
   background:#fff; display:flex; flex-direction:column; gap:8px;
   box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  height: auto;          /* clé */
+  min-height: 120px;     /* joli minimum */
 }
 .sticky.is-archived { opacity:.85; background:#fafafa; }
 
@@ -383,9 +422,33 @@
   width:100%; padding:8px 10px; border:1px solid rgba(0,0,0,.08); border-radius:10px;
   background:#fff; font-weight:700;
 }
+
+/* ✨ textarea auto-grow friendly
+   - pas de max-height ni scroll interne
+   - la tuile grandit avec le contenu
+   - si tu veux un fallback manuel: ajoute la classe .manual
+   - si tu veux une limite douce: ajoute .cap */
 .sticky-text {
   width:100%; padding:8px 10px; border:1px solid rgba(0,0,0,.08); border-radius:10px;
-  background:#fff; resize:vertical; max-height: 3.2rem; overflow: auto;
+  background:#fff;
+  font-size:.95rem; line-height: var(--note-line);
+  height: auto;            /* clé */
+  min-height: var(--note-min);
+  max-height: none;        /* clé */
+  overflow: hidden;        /* pas de scrollbar interne */
+  resize: none;            /* auto-size JS recommandé */
+}
+
+/* Variante : permettre le resize manuel (fallback sans JS) */
+.sticky-text.manual {
+  resize: vertical;
+  overflow: auto;
+}
+
+/* Variante : "cap douceur" ~20–22 lignes avant scroll interne */
+.sticky-text.cap {
+  max-height: calc(var(--note-line) * var(--note-max-lines) + var(--note-pad));
+  overflow: auto;
 }
 
 /* Meta */
@@ -426,7 +489,7 @@
 }
 
 /* =======================================================
-   RESPONSIVE & DENSIFICATION
+   Densification / Responsive hauteur
    ======================================================= */
 
 /* Laptops faible hauteur (ex: 1366x768) → cartes plus courtes */
@@ -438,10 +501,10 @@
 /* Écrans M (1024–1440) : densifier */
 @media (min-width: 1024px) and (max-width: 1439.98px){
   :root{
-    --cards-gap: 8px;
-    --card-height: clamp(115px, 18vh, 160px);
+    --cards-gap: 10px;
+    --card-height: clamp(115px, 18vh, 165px);
   }
-  .kan-board{ gap: 0.875rem; }
+  .kan-board{ gap: 1rem; }
   .kan-col__title{ padding: .5rem .625rem; }
   .kan-card{ padding: .625rem; }
   .kan-card__title{ -webkit-line-clamp: 2; line-clamp: 2; }
@@ -451,8 +514,8 @@
 
 /* Tablettes / petits laptops (768–1023) : 3 colonnes + cartes courtes */
 @media (min-width: 768px) and (max-width: 1023.98px){
-  .kan-board{ grid-template-columns: repeat(3, 1fr); }
-  :root{ --card-height: clamp(110px, 21vh, 150px); --cards-gap: 8px; }
+  .kan-board{ grid-template-columns: repeat(3, minmax(300px, 1fr)); }
+  :root{ --card-height: clamp(110px, 21vh, 150px); --cards-gap: 10px; }
   .kan-cards{ block-size: calc(2.5 * var(--card-height) + 2 * var(--cards-gap)); }
 }
 

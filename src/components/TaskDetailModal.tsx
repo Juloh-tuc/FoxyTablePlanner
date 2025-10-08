@@ -1,4 +1,3 @@
-// src/components/TaskDetailModal.tsx
 import type { Task, Statut } from "../types";
 import "./task-detail-modal.css";
 
@@ -20,10 +19,7 @@ type Props = {
   onEdit: (taskId: string) => void;
   onDelete: (taskId: string) => void;
 
-  /**
-   * Optionnel : résout un ID de tâche vers son titre.
-   * Si absent, on affichera les IDs ou rien.
-   */
+  /** Optionnel : résout un ID de tâche vers son titre. */
   resolveTitleById?: (id: string) => string | undefined;
 };
 
@@ -32,7 +28,7 @@ const slug = (s: Statut | string) =>
   (s || "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // retire diacritiques
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "-");
 
 const short = (iso?: string) => (iso ? iso.slice(0, 10) : "—");
@@ -72,9 +68,7 @@ export default function TaskDetailModal({
             <h3 className="tdm-title">{task.titre || "Tâche"}</h3>
             <span className={`badge badge-${slug(task.statut)}`}>{task.statut}</span>
           </div>
-          <button className="tdm-close" onClick={onClose} aria-label="Fermer">
-            ✕
-          </button>
+          <button className="tdm-close" onClick={onClose} aria-label="Fermer">✕</button>
         </header>
 
         {/* Infos principales */}
@@ -99,7 +93,21 @@ export default function TaskDetailModal({
             <span className="tdm-text">{short(task.echeance)}</span>
           </div>
 
-          {/* === Nouveau : relations structurelles === */}
+          {/* Structuration */}
+          <div className="tdm-field">
+            <span className="tdm-label">Kind</span>
+            <span className="tdm-text">{task.kind ?? "—"}</span>
+          </div>
+          <div className="tdm-field">
+            <span className="tdm-label">Domain</span>
+            <span className="tdm-text">{task.domain ?? "—"}</span>
+          </div>
+          <div className="tdm-field">
+            <span className="tdm-label">Epic</span>
+            <span className="tdm-text">{task.epicId ?? "—"}</span>
+          </div>
+
+          {/* Relations structurelles */}
           <div className="tdm-field span-2">
             <span className="tdm-label">Bloque</span>
             <div className="tdm-box">{blocksText}</div>
@@ -117,13 +125,7 @@ export default function TaskDetailModal({
               {assignees.length
                 ? assignees.map((n) => (
                     <span key={n} className="tdm-avatar" title={n}>
-                      {n
-                        .split(" ")
-                        .filter(Boolean)
-                        .map((p) => p[0])
-                        .join("")
-                        .slice(0, 2)
-                        .toUpperCase()}
+                      {n.split(" ").filter(Boolean).map((p) => p[0]).join("").slice(0, 2).toUpperCase()}
                     </span>
                   ))
                 : "—"}
@@ -136,28 +138,28 @@ export default function TaskDetailModal({
               <span className="tdm-label">Étiquettes</span>
               <div className="tdm-tags">
                 {task.etiquettes.map((lbl) => (
-                  <span key={lbl} className="tdm-tag">
-                    {lbl}
-                  </span>
+                  <span key={lbl} className="tdm-tag">{lbl}</span>
                 ))}
               </div>
             </div>
           )}
 
           {/* Notes de blocage (facultatif, legacy) */}
-          {hasBlockNotes && (
-            <>
-              <div className="tdm-field span-2">
-                <span className="tdm-label">Raison du blocage (notes)</span>
-                <div className="tdm-box">{(task.bloque ?? "").trim() || "—"}</div>
-              </div>
+      {/* Notes de blocage (facultatif, legacy) */}
+{hasBlockNotes &&
+  ((task.dependsOn?.length ?? 0) === 0 && (task.blocks?.length ?? 0) === 0) && (
+    <>
+      <div className="tdm-field span-2">
+        <span className="tdm-label">Raison du blocage (notes)</span>
+        <div className="tdm-box">{(task.bloque ?? "").trim() || "—"}</div>
+      </div>
 
-              <div className="tdm-field span-2">
-                <span className="tdm-label">Bloqué par (notes)</span>
-                <div className="tdm-box">{(task.bloquePar ?? "").trim() || "—"}</div>
-              </div>
-            </>
-          )}
+      <div className="tdm-field span-2">
+        <span className="tdm-label">Bloqué par (notes)</span>
+        <div className="tdm-box">{(task.bloquePar ?? "").trim() || "—"}</div>
+      </div>
+    </>
+)}
 
           {/* Remarques */}
           {(task.remarques ?? "").trim() !== "" && (
@@ -170,15 +172,9 @@ export default function TaskDetailModal({
 
         {/* Actions */}
         <footer className="tdm-actions">
-          <button className="tdm-btn primary" onClick={() => onEdit(task.id)}>
-            ✏️ Modifier
-          </button>
-          <button className="tdm-btn danger ghost" onClick={() => onDelete(task.id)}>
-            🗑️ Supprimer…
-          </button>
-          <button className="tdm-btn" onClick={onClose}>
-            Fermer
-          </button>
+          <button className="tdm-btn primary" onClick={() => onEdit(task.id)}>✏️ Modifier</button>
+          <button className="tdm-btn danger ghost" onClick={() => onDelete(task.id)}>🗑️ Supprimer…</button>
+          <button className="tdm-btn" onClick={onClose}>Fermer</button>
         </footer>
       </div>
     </div>

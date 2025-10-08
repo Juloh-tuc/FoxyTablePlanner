@@ -1,24 +1,38 @@
+// src/pages/PlannerMonth.tsx
 import { useMemo, useState, useEffect } from "react";
-import { seed } from "../data";
-import type { Task, Statut } from "../types";
+import type { Task, Statut, Etiquette } from "../types";
+import { S } from "../types";
 
-import "../components/edit-task-modal.css";
 import "../styles/planner-month.css";
+import "../styles/avatars.css";
+import "../styles/admin-cell.css";
+import "../styles/planner-common.css";
 
+// Modales existantes (comme dans PlannerTable)
 import TaskDetailModal from "../components/TaskDetailModal";
 import EditTaskModal from "../components/EditTaskModal";
-import ConfirmDialog from "../components/ConfirmDialog";
-import { useConfirm } from "../hooks/useConfirm";
-import { useProjector } from "../hooks/useProjector";
+import AddTaskModal from "../components/AddTaskModal";
 
-/* ---------- Helpers ---------- */
+// API front (localStorage)
+import {
+  fetchActiveTasks,
+  fetchArchivedTasks,
+  onTasksChanged,
+  upsertTask,
+  patchTask,
+} from "../api";
+
+/* =============== Helpers =============== */
 const fmt = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+
 const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
 const endOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
 const mondayIndex = (jsDay: number) => (jsDay + 6) % 7;
+
 type DayCell = { date: string; inMonth: boolean; isToday: boolean };
-const uid = () => Math.random().toString(36).slice(2, 9);
 
 const STATUTS: Statut[] = ["Pas commencé", "En cours", "En attente", "Bloqué", "Terminé"];
 
@@ -37,7 +51,7 @@ const colorIndexFor = (name: string) => {
   return Math.abs(h) % 10;
 };
 
-/** Avatars dans /public/avatars */
+/** Avatars dispo dans /public/avatars (optionnel) */
 const ADMIN_AVATARS: Record<string, string> = {
   Julie: "Foxy_Julie.png",
   Léo: "léo_foxy.png",
@@ -52,162 +66,114 @@ const avatarUrlFor = (name?: string | null) => {
   return f ? `/avatars/${f}` : null;
 };
 
-/* ---------- Dialogs ---------- */
-function ArchiveDeleteDialog({
+/* =============== Modale Day Bucket (liste jour/personne) =============== */
+function DayBucketModal({
   open,
-  title,
-  onArchive,
-  onDelete,
-  onCancel,
+  date,
+  person,
+  tasks,
+  onClose,
+  onEdit,
+  onDetails,
 }: {
   open: boolean;
-  title: string;
-  onArchive: () => void;
-  onDelete: () => void;
-  onCancel: () => void;
+  date: string;
+  person: string;
+  tasks: Task[];
+  onClose: () => void;
+  onEdit: (t: Task) => void;
+  onDetails: (t: Task) => void;
 }) {
   if (!open) return null;
-  return (
-    <div className="ft-modal-overlay" role="dialog" aria-modal="true" onClick={onCancel}>
-      <div className="ft-modal" onClick={(e) => e.stopPropagation()}>
-        <h3 className="ft-modal-title">Que faire de « {title} » ?</h3>
-        <p className="ft-modal-text">Archiver (réversible) ou supprimer (définitif).</p>
-        <div className="ft-modal-actions">
-          <button className="ft-btn" onClick={onArchive}>
-            Archiver
-          </button>
-          <button className="ft-btn danger" onClick={onDelete}>
-            Supprimer
-          </button>
-          <button className="ft-btn ghost" onClick={onCancel}>
-            Annuler
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+  const titleDate = new Date(date + "T00:00:00").toLocaleDateString("fr-FR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  });
 
-function PersonDayModal({
-  open,
-  person,
-  dateISO,
-  tasks,
-  meeting,
-  onClose,
-  onAddTask,
-  onEdit,
-  onDetail,
-  onArchive,
-  onDelete,
-}: {
-  open: boolean;
-  person: string | null;
-  dateISO: string | null;
-  tasks: Task[];
-  meeting: boolean;
-  onClose: () => void;
-  onAddTask: (person: string, dateISO: string) => void;
-  onEdit: (id: string) => void;
-  onDetail: (id: string) => void;
-  onArchive: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  if (!open || !person || !dateISO) return null;
   return (
     <div className="ft-modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="ft-modal ft-lg" onClick={(e) => e.stopPropagation()}>
         <div className="ft-modal-header">
           <h3 className="ft-modal-title">
-            {person} — {dateISO}
+            {person} — {titleDate}
           </h3>
-          <button className="ft-icon-btn" onClick={onClose} aria-label="Fermer">
-            ✕
-          </button>
+          <button className="ft-icon-btn" onClick={onClose} aria-label="Fermer">✕</button>
         </div>
 
-        <div className="pm-list">
+        <div className="ft-list">
           {tasks.length ? (
-            tasks.map((t) => (
-              <div key={t.id} className="pm-item">
-                <div className="pm-left">
-                  <div className="pm-title" title={t.titre}>
-                    {t.titre}
+            tasks
+              .sort((a, b) => (a.titre || "").localeCompare(b.titre || ""))
+              .map((t) => (
+                <div key={t.id} className="ft-arch-item">
+                  <div className="ft-arch-main">
+                    <div className="ft-arch-title">{t.titre || "—"}</div>
+                    <div className="ft-arch-meta">
+                      <span className={`badge`} style={{ marginRight: 8 }}>{t.statut}</span>
+                      <span>{t.priorite ?? "—"}</span>
+                      <span>•</span>
+                      <span>{t.debut ?? "—"} → {t.echeance ?? "—"}</span>
+                      {t.etiquettes?.length ? (<><span>•</span><span>{t.etiquettes.join(", ")}</span></>) : null}
+                    </div>
                   </div>
-                  <div className="pm-meta">
-                    <span className={`pm-chip is-${t.statut.replace(/\s+/g, "-").toLowerCase()}`}>{t.statut}</span>
-                    {t.priorite && <span className="pm-chip prio">{t.priorite}</span>}
-                    {t.remarques && (
-                      <span className="pm-remarks one-line" title={t.remarques}>
-                        {t.remarques}
-                      </span>
-                    )}
+                  <div className="ft-arch-actions">
+                    <button className="ft-btn" onClick={() => onEdit(t)}>Éditer</button>
+                    <button className="ft-btn ghost" onClick={() => onDetails(t)}>Détails</button>
                   </div>
                 </div>
-                <div className="pm-actions">
-                  <button className="ft-btn" onClick={() => onEdit(t.id)} disabled={meeting}>
-                    Éditer
-                  </button>
-                  <button className="ft-btn ghost" onClick={() => onDetail(t.id)}>
-                    Détails
-                  </button>
-                  <button className="ft-btn" onClick={() => onArchive(t.id)} disabled={meeting}>
-                    Archiver
-                  </button>
-                  <button className="ft-btn danger" onClick={() => onDelete(t.id)} disabled={meeting}>
-                    Supprimer
-                  </button>
-                </div>
-              </div>
-            ))
+              ))
           ) : (
-            <div className="ft-empty">Aucune tâche pour {person} ce jour-là.</div>
+            <div className="ft-empty">Aucune tâche pour ce jour.</div>
           )}
         </div>
 
         <div className="ft-modal-actions end">
-          <button className="ft-btn primary" onClick={() => onAddTask(person, dateISO)} disabled={meeting}>
-             Ajouter une tâche
-          </button>
-          <button className="ft-btn ghost" onClick={onClose}>
-            Fermer
-          </button>
+          <button className="ft-btn ghost" onClick={onClose}>Fermer</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* ---------- Page ---------- */
+/* =============== Page =============== */
 export default function PlannerMonth() {
-  const [rows, setRows] = useState<Task[]>(() => JSON.parse(JSON.stringify(seed)));
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [cursor, setCursor] = useState<Date>(new Date());
-  const [openTask, setOpenTask] = useState<Task | null>(null);
-  const [editTask, setEditTask] = useState<Task | null>(null);
-  const confirm = useConfirm();
 
-  // Meeting (léger thème + read-only)
+  // Modales globales
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDefaults, setCreateDefaults] = useState<Partial<Task> | null>(null);
+
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const selectedTask = useMemo(
+    () => tasks.find((t) => t.id === selectedTaskId) ?? null,
+    [tasks, selectedTaskId]
+  );
+
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  // Day bucket (clic sur pastille personne)
+  const [bucketOpen, setBucketOpen] = useState(false);
+  const [bucketDate, setBucketDate] = useState<string>("");
+  const [bucketPerson, setBucketPerson] = useState<string>("");
+
+  // Mode réunion
   const [meeting, setMeeting] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("planner.month.meeting") === "1";
-    } catch {
-      return false;
-    }
+    try { return localStorage.getItem("planner.month.meeting") === "1"; } catch { return false; }
   });
   const toggleMeeting = () => {
     setMeeting((v) => {
       const next = !v;
-      try {
-        localStorage.setItem("planner.month.meeting", next ? "1" : "0");
-      } catch {}
+      try { localStorage.setItem("planner.month.meeting", next ? "1" : "0"); } catch {}
       return next;
     });
   };
-// ⚡ Active/désactive le rétroprojecteur via le hook partagé
-  useProjector(meeting);
-  
 
-  // Ping visuel quand on clique "Aujourd'hui"
+  // Plein écran bord à bord
+  const [fullBleed, setFullBleed] = useState<boolean>(false);
+
+  // Ping visuel “aujourd’hui”
   const [pingToday, setPingToday] = useState(false);
   useEffect(() => {
     if (!pingToday) return;
@@ -215,14 +181,37 @@ export default function PlannerMonth() {
     return () => clearTimeout(id);
   }, [pingToday]);
 
+  // Chargement initial
+  useEffect(() => {
+    (async () => {
+      try {
+        const [actives, archived] = await Promise.all([fetchActiveTasks(), fetchArchivedTasks()]);
+        setTasks([...actives, ...archived]);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
+  // Sync multi-onglets
+  useEffect(() => {
+    const off = onTasksChanged(async () => {
+      const [actives, archived] = await Promise.all([fetchActiveTasks(), fetchArchivedTasks()]);
+      setTasks([...actives, ...archived]);
+    });
+    return off;
+  }, []);
+
   /* ----- Grille du mois ----- */
   const days: DayCell[] = useMemo(() => {
     const s = startOfMonth(cursor);
     const e = endOfMonth(cursor);
     const sIdx = mondayIndex(s.getDay());
     const eIdx = mondayIndex(e.getDay());
+
     const first = new Date(s);
     first.setDate(s.getDate() - sIdx);
+
     const last = new Date(e);
     last.setDate(e.getDate() + (6 - eIdx));
 
@@ -231,7 +220,11 @@ export default function PlannerMonth() {
     const todayStr = fmt(new Date());
     while (cur <= last) {
       const dstr = fmt(cur);
-      out.push({ date: dstr, inMonth: cur.getMonth() === cursor.getMonth(), isToday: dstr === todayStr });
+      out.push({
+        date: dstr,
+        inMonth: cur.getMonth() === cursor.getMonth(),
+        isToday: dstr === todayStr,
+      });
       cur.setDate(cur.getDate() + 1);
     }
     return out;
@@ -239,8 +232,8 @@ export default function PlannerMonth() {
 
   /* ----- Filtres ----- */
   const admins = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.admin).filter(Boolean))) as string[],
-    [rows]
+    () => Array.from(new Set(tasks.map((r) => r.admin).filter(Boolean))) as string[],
+    [tasks]
   );
   const [q, setQ] = useState("");
   const [fAdmin, setFAdmin] = useState<string | "Tous">("Tous");
@@ -249,27 +242,19 @@ export default function PlannerMonth() {
 
   const filtered = useMemo(() => {
     const text = q.trim().toLowerCase();
-    return rows.filter((t) => {
+    return tasks.filter((t) => {
       if (!showArchived && t.archived) return false;
       if (fAdmin !== "Tous" && t.admin !== fAdmin) return false;
       if (fStatut !== "Tous" && t.statut !== fStatut) return false;
       if (!text) return true;
-      const hay = [
-        t.titre,
-        t.admin,
-        t.priorite ?? "",
-        t.remarques ?? "",
-        (t as any).bloque ?? "",
-        (t as any).bloquePar ?? "",
-        ...((t.etiquettes as any) ?? []),
-      ]
+      const hay = [t.titre, t.admin, t.priorite ?? "", t.remarques ?? "", ...(t.etiquettes ?? [])]
         .join(" ")
         .toLowerCase();
       return hay.includes(text);
     });
-  }, [rows, q, fAdmin, fStatut, showArchived]);
+  }, [tasks, q, fAdmin, fStatut, showArchived]);
 
-  /* ----- Jour → Personne → {count, tasks} ----- */
+  /* ----- Répartition Jour -> Personne -> {count, tasks[]} ----- */
   const dayPeople = useMemo(() => {
     const map = new Map<string, Map<string, { count: number; tasks: Task[] }>>();
     const push = (iso: string, t: Task) => {
@@ -295,269 +280,265 @@ export default function PlannerMonth() {
     return map;
   }, [filtered]);
 
-  /* ----- PersonDay Modal state ----- */
-  const [personDay, setPersonDay] = useState<{
-    open: boolean;
-    person: string | null;
-    dateISO: string | null;
-  }>({ open: false, person: null, dateISO: null });
-
-  /* ----- Archive / Delete ----- */
-  const [adOpen, setAdOpen] = useState<{ open: boolean; id?: string; title?: string }>({ open: false });
-  const askArchiveDeleteFor = (t: Task) => setAdOpen({ open: true, id: t.id, title: t.titre });
-  const doArchive = () => {
-    if (!adOpen.id) return;
-    setRows((prev) =>
-      prev.map((t) => (t.id === adOpen.id ? { ...t, archived: true, archivedAt: new Date().toISOString() } : t))
-    );
-    setAdOpen({ open: false });
-  };
-  const doDelete = () => {
-    if (!adOpen.id) return;
-    setRows((prev) => prev.filter((t) => t.id !== adOpen.id));
-    setAdOpen({ open: false });
-  };
-
-  /* ----- CRUD ----- */
-  const saveTask = (payload: Task) => {
-    setRows((prev) => {
-      const exists = prev.some((r) => r.id === payload.id);
-      return exists ? prev.map((r) => (r.id === payload.id ? payload : r)) : [payload, ...prev];
-    });
-    setEditTask(null);
-  };
-
-  const quickNewForDay = (dayStr: string, person?: string) => {
-    // Ajoute assignees: [] pour satisfaire un type Task où assignees est requis
-    const draft: Task = {
-      id: uid(),
-      titre: "Nouvelle tâche",
-      admin: person ?? (fAdmin !== "Tous" ? fAdmin : ""),
-      statut: "Pas commencé",
-      priorite: "Moyen",
-      debut: dayStr,
-      echeance: dayStr,
-      avancement: 0,
-      budget: 0,
-      remarques: "",
-      etiquettes: [],
-      
-      assignees: [],
-    } as unknown as Task;
-    setEditTask(draft);
-  };
-
-  /* ----- Render ----- */
-  const monthLabel = cursor.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  /* ----- Actions rapides ----- */
   const goToday = () => {
     setCursor(new Date());
     setPingToday(true);
   };
 
+  // Ouvre la modale d’ajout avec pré-remplissage (date / admin)
+  const openAddFor = (dayISO: string, person?: string) => {
+    if (meeting) return;
+    setCreateDefaults({
+      debut: dayISO,
+      echeance: dayISO,
+      admin: person ?? "",
+      statut: S.PAS_COMMENCE,
+    });
+    setCreateOpen(true);
+  };
+
+  // Mise à jour locale d’une tâche après patch/save
+  const mergeOne = (saved: Task) =>
+    setTasks((prev) => prev.map((x) => (x.id === saved.id ? saved : x)));
+
+  /* ----- Render ----- */
+  const monthLabel = cursor.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+
+  const sectionClass = [
+    "month-wrap",
+    fullBleed && "month-fullbleed",
+    meeting && "meeting-on",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <section className={`month-wrap ${meeting ? "meeting-on" : ""}`}>
-      {/* Titre seul au-dessus */}
+    <section className={sectionClass}>
+      {/* Titre */}
       <div className="month-title-row">
         <h2 className="title">{monthLabel}</h2>
       </div>
 
-      {/* Barre d’actions en dessous (nav + filtres + toggle) */}
+      {/* Toolbar */}
       <header className="month-toolbar">
         <div className="nav">
-          <button className="btn" onClick={() => setCursor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}>
+          <button
+            className="btn"
+            onClick={() => setCursor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+            title="Mois précédent"
+          >
             ◀
-          </button>
-          <button className="btn today" onClick={goToday} title="Revenir au mois actuel">
-            Aujourd’hui
-          </button>
-          <button className="btn" onClick={() => setCursor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}>
-            ▶
           </button>
         </div>
 
-        <div className="right">
-          <div className="filters">
+        <div className="filters">
+          <input
+            className="flt flt-input"
+            placeholder="Rechercher…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select className="flt" value={fAdmin} onChange={(e) => setFAdmin(e.target.value as any)}>
+            <option value="Tous">Tous admins</option>
+            {admins.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+          <select className="flt" value={fStatut} onChange={(e) => setFStatut(e.target.value as any)}>
+            <option value="Tous">Tous statuts</option>
+            {STATUTS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <label className="flt-check">
             <input
-              className="flt flt-input"
-              placeholder="Rechercher…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
             />
-            <select className="flt" value={fAdmin} onChange={(e) => setFAdmin(e.target.value as any)}>
-              <option value="Tous">Tous admins</option>
-              {admins.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-            <select className="flt" value={fStatut} onChange={(e) => setFStatut(e.target.value as any)}>
-              <option value="Tous">Tous statuts</option>
-              {STATUTS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <label className="flt-check">
-              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />{" "}
-              Archivées
-            </label>
-          </div>
+            Archivées
+          </label>
 
+          <button className="btn today" onClick={goToday} title="Revenir à aujourd’hui">
+            Aujourd’hui
+          </button>
+
+          {/* Toggle plein écran + mode réunion */}
+          <button className="btn" onClick={() => setFullBleed((v) => !v)} title="Plein écran bord à bord">
+            {fullBleed ? "Sortir du plein écran" : "Plein écran"}
+          </button>
           <button
             className={`meeting-toggle ${meeting ? "is-on" : ""}`}
             onClick={toggleMeeting}
-            title="Basculer Mode réunion (active aussi le mode rétroprojecteur)"
+            title="Basculer Mode réunion"
           >
             <span className="mt-dot" />
             <span>{meeting ? "Mode réunion : ON" : "Mode réunion"}</span>
           </button>
         </div>
+
+        <div className="nav">
+          <button
+            className="btn"
+            onClick={() => setCursor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+            title="Mois suivant"
+          >
+            ▶
+          </button>
+        </div>
       </header>
 
-      {/* En-têtes jours */}
-      <div className="month-grid month-grid--head">
-        {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => (
-          <div key={d} className="day-head">
-            {d}
-          </div>
-        ))}
-      </div>
-
-      {/* Grille */}
-      <div className="month-grid">
-        {days.map(({ date, inMonth, isToday }) => {
-          const bucket = dayPeople.get(date) ?? new Map(); // Map<person, {count,tasks}>
-          const entries = Array.from(bucket.entries()); // [person, info]
-          const dayNum = Number(date.slice(8, 10));
-          const todayClass = isToday && pingToday ? " ping" : "";
-
-          return (
-            <div key={date} className={`day-cell${inMonth ? "" : " out"}${isToday ? " today" : ""}${todayClass}`}>
-              <div className="day-num">{dayNum}</div>
-
-              {entries.length > 0 && (
-                <div className="people-stack">
-                  {entries.map(([person, info]) => {
-                    const img = avatarUrlFor(person);
-                    const colorClass = `color-h${colorIndexFor(person)}`;
-                    return (
-                      <button
-                        key={person}
-                        className={`person-chip ${colorClass}`}
-                        title={`${person} — ${info.count} tâche(s)`}
-                        onClick={() => setPersonDay({ open: true, person, dateISO: date })}
-                        disabled={meeting}
-                      >
-                        <span className="avatar">
-                          {img ? (
-                            <img src={encodeURI(img)} alt="" />
-                          ) : (
-                            <span className="fallback">{initials(person) || "?"}</span>
-                          )}
-                        </span>
-                        <span className="person-name">{person}</span>
-                        <span className="count-badge">{info.count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {!meeting && (
-                <button
-                  className="btn tiny add-btn"
-                  onClick={() => quickNewForDay(date, entries.length === 1 ? entries[0][0] : undefined)}
-                  title="Ajouter une tâche"
-                >
-                   Ajouter
-                </button>
-              )}
+      {/* ====== SCROLLER : entête + grille (scroll X sur mobile) ====== */}
+      <div className="month-scroller">
+        {/* En-têtes jours */}
+        <div className="month-grid month-grid--head">
+          {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => (
+            <div key={d} className="day-head">
+              {d}
             </div>
-          );
-        })}
+          ))}
+        </div>
+
+        {/* Grille */}
+        <div className="month-grid">
+          {days.map(({ date, inMonth, isToday }) => {
+            const bucket = dayPeople.get(date) ?? new Map(); // Map<person, {count,tasks}>
+            const entries = Array.from(bucket.entries());
+            const dayNum = Number(date.slice(8, 10));
+            const todayClass = isToday && pingToday ? " ping" : "";
+
+            return (
+              <div
+                key={date}
+                className={`day-cell${inMonth ? "" : " out"}${isToday ? " today" : ""}${todayClass}`}
+              >
+                <div className="day-num">{dayNum}</div>
+
+                {entries.length > 0 && (
+                  <div className="people-stack">
+                    {entries.map(([person, info]) => {
+                      const img = avatarUrlFor(person);
+                      const colorClass = `color-h${colorIndexFor(person)}`;
+                      return (
+                        <button
+                          key={person}
+                          className={`person-chip ${colorClass}`}
+                          title={`${person} — ${info.count} tâche(s)`}
+                          disabled={meeting}
+                          onClick={() => {
+                            if (meeting) return;
+                            setBucketDate(date);
+                            setBucketPerson(person);
+                            setBucketOpen(true);
+                          }}
+                        >
+                          <span className="avatar">
+                            {img ? (
+                              <img src={encodeURI(img)} alt="" />
+                            ) : (
+                              <span className="fallback">{initials(person) || "?"}</span>
+                            )}
+                          </span>
+                          <span className="person-name">{person}</span>
+                          <span className="count-badge">{info.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {!meeting && (
+                  <button
+                    className="btn add-btn"
+                    onClick={() => openAddFor(date, entries.length === 1 ? entries[0][0] : undefined)}
+                    title="Ajouter une tâche ce jour"
+                  >
+                    Ajouter
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Person → Day modal */}
-      <PersonDayModal
-        open={personDay.open}
-        person={personDay.person}
-        dateISO={personDay.dateISO}
-        tasks={
-          personDay.open && personDay.person && personDay.dateISO
-            ? dayPeople.get(personDay.dateISO)?.get(personDay.person)?.tasks ?? []
-            : []
-        }
-        meeting={meeting}
-        onClose={() => setPersonDay({ open: false, person: null, dateISO: null })}
-        onAddTask={(p, iso) => {
-          setPersonDay({ open: false, person: null, dateISO: null });
-          quickNewForDay(iso, p);
-        }}
-        onEdit={(id) => {
-          if (meeting) return;
-          const t = rows.find((x) => x.id === id);
-          setPersonDay({ open: false, person: null, dateISO: null });
-          if (t) setEditTask(t);
-        }}
-        onDetail={(id) => {
-          const t = rows.find((x) => x.id === id);
-          setPersonDay({ open: false, person: null, dateISO: null });
-          if (t) setOpenTask(t);
-        }}
-        onArchive={(id) => {
-          if (meeting) return;
-          setRows((prev) =>
-            prev.map((x) => (x.id === id ? { ...x, archived: true, archivedAt: new Date().toISOString() } : x))
-          );
-        }}
-        onDelete={(id) => {
-          if (meeting) return;
-          const t = rows.find((x) => x.id === id);
-          setPersonDay({ open: false, person: null, dateISO: null });
-          if (t) askArchiveDeleteFor(t);
-        }}
+      {/* ===== Modales ===== */}
+
+      {/* Day bucket */}
+      <DayBucketModal
+        open={bucketOpen}
+        date={bucketDate}
+        person={bucketPerson}
+        tasks={(dayPeople.get(bucketDate)?.get(bucketPerson)?.tasks ?? [])}
+        onClose={() => setBucketOpen(false)}
+        onEdit={(t) => { setBucketOpen(false); setEditingTask(t); }}
+        onDetails={(t) => { setBucketOpen(false); setSelectedTaskId(t.id); }}
       />
 
-      {/* Modals standards */}
-      {openTask && (
+      {/* Détails */}
+      {selectedTask && (
         <TaskDetailModal
-          task={openTask}
-          onClose={() => setOpenTask(null)}
+          task={selectedTask}
+          onClose={() => setSelectedTaskId(null)}
           onEdit={(taskId: string) => {
             if (meeting) return;
-            const t = rows.find((x) => x.id === taskId);
-            if (t) setEditTask(t);
+            const t = tasks.find((x) => x.id === taskId);
+            if (t) setEditingTask(t);
           }}
-          onDelete={(taskId: string) => {
-            const t = rows.find((x) => x.id === taskId);
-            if (t) askArchiveDeleteFor(t);
+          onDelete={() => {
+            // Ici, on n’archive/supprime pas directement depuis Month (garde la cohérence avec Table)
+            setSelectedTaskId(null);
           }}
         />
       )}
 
-      {editTask && !meeting && (
+      {/* Édition */}
+      {editingTask && (
         <EditTaskModal
-          task={editTask}
-          onClose={() => setEditTask(null)}
-          onSave={saveTask}
           open={true}
-          tasks={rows}
+          task={editingTask}
           admins={admins}
-          onAskArchiveDelete={askArchiveDeleteFor}
+          tasks={tasks}
+          onSave={async (updated) => {
+            // on sauvegarde puis remet dans le state
+            const saved = (await patchTask(updated.id, updated)) as Task;
+            mergeOne(saved);
+            setEditingTask(null);
+          }}
+          onClose={() => setEditingTask(null)}
+          onAskArchiveDelete={() => {
+            // Si tu veux gérer l’archivage ici, fais-le comme dans PlannerTable
+            setEditingTask(null);
+          }}
         />
       )}
 
-      <ArchiveDeleteDialog
-        open={adOpen.open}
-        title={adOpen.title ?? "cette tâche"}
-        onArchive={doArchive}
-        onDelete={doDelete}
-        onCancel={() => setAdOpen({ open: false })}
+      {/* Ajout */}
+      <AddTaskModal
+        open={createOpen}
+        admins={admins}
+        tags={[] as Etiquette[]}
+        onCreate={async (draft) => {
+          // Pré-remplissage date/admin si fournis par le clic
+          const merged = {
+            ...draft,
+            admin: (createDefaults?.admin ?? draft.admin) || "",
+            debut: createDefaults?.debut ?? draft.debut,
+            echeance: createDefaults?.echeance ?? draft.echeance,
+            statut: draft.statut ?? (createDefaults?.statut as Statut) ?? S.PAS_COMMENCE,
+          };
+          const saved = (await upsertTask(merged)) as Task;
+          setTasks((prev) => [saved, ...prev]);
+          setCreateDefaults(null);
+          setCreateOpen(false);
+        }}
+        onClose={() => { setCreateOpen(false); setCreateDefaults(null); }}
       />
-
-      <ConfirmDialog open={confirm.open} message={confirm.message} onCancel={confirm.cancel} onConfirm={confirm.confirm} />
     </section>
   );
 }

@@ -37,7 +37,7 @@ export default function AdminCell({
   const popRef = useRef<HTMLDivElement | null>(null);
 
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState<{ left: number; top: number; dir: "up" | "down" } | null>(null);
+  const [anchor, setAnchor] = useState<{ left: number; top: number; dir: "down" | "up" } | null>(null);
 
   const initial = useMemo<string[]>(
     () => (Array.isArray(assignees) && assignees.length ? assignees : admin ? [admin] : []),
@@ -48,13 +48,11 @@ export default function AdminCell({
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    // Sync when row changes
     const init = Array.isArray(assignees) && assignees.length ? assignees : admin ? [admin] : [];
     setDraft(init);
     setDraftAdmin(admin || init[0] || "");
   }, [admin, assignees]);
 
-  // Close on outside click only (PAS sur scroll)
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
@@ -96,10 +94,20 @@ export default function AdminCell({
     });
   };
 
-  // IMPORTANT : empêcher la propagation des scrolls/gestes pour ne PAS scroller la page/table.
   const stopScroll = (e: React.UIEvent | React.WheelEvent | React.TouchEvent) => {
     e.stopPropagation();
   };
+
+  // Texte compact sans "Admin:"
+  const triggerText = useMemo(() => {
+    const names = admin
+      ? [admin, ...(assignees?.filter((a) => a && a !== admin) ?? [])]
+      : (assignees ?? []).filter(Boolean);
+    const uniq = Array.from(new Set(names));
+    if (uniq.length === 0) return "Choisir…";
+    if (uniq.length === 1) return uniq[0]!;
+    return `${uniq[0]} +${uniq.length - 1}`;
+  }, [admin, assignees]);
 
   return (
     <div className="ac-cell">
@@ -109,9 +117,10 @@ export default function AdminCell({
         type="button"
         disabled={disabled}
         onClick={openPicker}
-        title="Assigner des personnes / définir l'admin"
+        title="Assigner des personnes / définir l’admin"
+        aria-label={`Personnes : ${triggerText}`}
       >
-        {admin ? `Admin: ${admin}` : (assignees?.length ? assignees.join(", ") : "Choisir…")}
+        {triggerText}
       </button>
 
       {open && anchor && (
@@ -119,7 +128,6 @@ export default function AdminCell({
           ref={popRef}
           className={`ac-popover ${anchor.dir === "up" ? "dir-up" : "dir-down"}`}
           style={{ position: "fixed", left: anchor.left, top: anchor.top, width: 320, maxHeight: 360 }}
-          // Bloque la propagation des scrolls/gestes vers les parents
           onWheel={stopScroll}
           onScroll={stopScroll}
           onTouchMove={stopScroll}
@@ -142,13 +150,7 @@ export default function AdminCell({
             <button className="ft-icon-btn" onClick={() => setOpen(false)} aria-label="Fermer">✕</button>
           </div>
 
-          <div
-            className="ac-list"
-            // double sécurité pour le scroll interne
-            onWheel={stopScroll}
-            onScroll={stopScroll}
-            onTouchMove={stopScroll}
-          >
+          <div className="ac-list" onWheel={stopScroll} onScroll={stopScroll} onTouchMove={stopScroll}>
             {shown.map((name) => (
               <label key={name} className="ac-row">
                 <input
